@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "project": "sample",
+    "title": "Meeting room booking portal",
+    "client": "Sample Client",
+    "date": "2026-07-20",
+    "contingency_pct": 15,
+    "status": "confirmed",
+    "dev_tasks_status": "confirmed",
+    "notes": "Synthetic fixture used by the planning-engine parity test. It is deliberately small but not trivial: several epics, dev tasks spread across every layer, and days that do not divide evenly into whole working days."
+  },
+  "epics": [
+    {
+      "id": "E1",
+      "name": "1. Rooms and resources",
+      "tasks": [
+        {
+          "id": "E1.T1",
+          "task": "Room and equipment catalogue",
+          "days": 3.5,
+          "description": "Stores the bookable rooms with their capacity, floor and fixed equipment.",
+          "dev_tasks": [
+            {
+              "id": "E1.T1.D1",
+              "dev_task": "Room and equipment tables",
+              "description": "Tables room, equipment and room_equipment, with the seed data for the two pilot buildings.",
+              "days": 1.5,
+              "layer": 1
+            },
+            {
+              "id": "E1.T1.D2",
+              "dev_task": "Room list screen",
+              "description": "Paginated list with filters on building, floor and capacity.",
+              "days": 1.25,
+              "layer": 2
+            },
+            {
+              "id": "E1.T1.D3",
+              "dev_task": "Availability rules",
+              "description": "Opening hours per room, blackout windows and the minimum notice before a booking.",
+              "days": 0.75,
+              "layer": 3
+            }
+          ]
+        },
+        {
+          "id": "E1.T2",
+          "task": "Room detail and edit form",
+          "days": 2.25,
+          "description": "Lets a facility manager correct the data of a single room.",
+          "dev_tasks": [
+            {
+              "id": "E1.T2.D1",
+              "dev_task": "Room detail form",
+              "description": "Read and edit view with validation on capacity and opening hours.",
+              "days": 1.5,
+              "layer": 2
+            },
+            {
+              "id": "E1.T2.D2",
+              "dev_task": "Change history",
+              "description": "Records who changed what and when, shown as a table under the form.",
+              "days": 0.75,
+              "layer": 3
+            }
+          ]
+        }
+      ],
+      "e2e": {
+        "label": "E2E test of the Rooms and resources flow",
+        "days": 1.0
+      }
+    },
+    {
+      "id": "E2",
+      "name": "2. Booking",
+      "tasks": [
+        {
+          "id": "E2.T1",
+          "task": "Booking calendar",
+          "days": 5.5,
+          "description": "The weekly grid a colleague uses to find a free slot and take it.",
+          "dev_tasks": [
+            {
+              "id": "E2.T1.D1",
+              "dev_task": "Booking and attendee tables",
+              "description": "Tables booking and booking_attendee, with the uniqueness constraint on room plus time slot.",
+              "days": 1.0,
+              "layer": 1
+            },
+            {
+              "id": "E2.T1.D2",
+              "dev_task": "Weekly calendar view",
+              "description": "Week grid by room, with drag to select a slot and the room filter kept in the URL.",
+              "days": 2.5,
+              "layer": 2
+            },
+            {
+              "id": "E2.T1.D3",
+              "dev_task": "Overlap check",
+              "description": "Rejects a booking that overlaps an existing one on the same room, including the setup buffer between meetings.",
+              "days": 1.25,
+              "layer": 3
+            },
+            {
+              "id": "E2.T1.D4",
+              "dev_task": "Calendar invitation",
+              "description": "Sends the invitation to the attendees and keeps it in step when the booking moves.",
+              "days": 0.75,
+              "layer": 3
+            }
+          ]
+        },
+        {
+          "id": "E2.T2",
+          "task": "Cancel and reschedule",
+          "days": 2.0,
+          "description": "Frees a slot up again, warning the people who were expected.",
+          "dev_tasks": [
+            {
+              "id": "E2.T2.D1",
+              "dev_task": "Cancellation flow",
+              "description": "Cancel action with a reason, permitted only to the organiser or a facility manager.",
+              "days": 1.25,
+              "layer": 3
+            },
+            {
+              "id": "E2.T2.D2",
+              "dev_task": "Notice to the attendees",
+              "description": "Notification on cancellation and on a change of time or room.",
+              "days": 0.75,
+              "layer": 3
+            }
+          ]
+        }
+      ],
+      "e2e": {
+        "label": "E2E test of the Booking flow",
+        "days": 1.5
+      }
+    },
+    {
+      "id": "E3",
+      "name": "3. Reporting",
+      "tasks": [
+        {
+          "id": "E3.T1",
+          "task": "Room usage report",
+          "days": 2.75,
+          "description": "Shows how much each room is actually used, so the unused ones can be given up.",
+          "dev_tasks": [
+            {
+              "id": "E3.T1.D1",
+              "dev_task": "Usage aggregation",
+              "description": "Hours booked and hours actually used per room and per month, materialised nightly.",
+              "days": 1.5,
+              "layer": 1
+            },
+            {
+              "id": "E3.T1.D2",
+              "dev_task": "Report screen",
+              "description": "Table plus bar chart, with a period filter and a CSV export.",
+              "days": 1.25,
+              "layer": 2
+            }
+          ]
+        }
+      ],
+      "e2e": {
+        "label": "E2E test of the Reporting flow",
+        "days": 0.5
+      }
+    }
+  ],
+  "assumptions": [
+    "The list of rooms is loaded once at go-live and maintained by hand afterwards: no sync with the facilities system.",
+    "Attendees are looked up in the company directory, which already exposes a search endpoint.",
+    "A booking involves one room only: splitting a meeting across two rooms is out of scope."
+  ],
+  "considerations": [
+    "The weekly calendar is the heaviest single item of the estimate and the one the users will judge the tool by.",
+    "The overlap check and the setup buffer between meetings are the two rules most likely to change after the first demo."
+  ],
+  "open_questions": [
+    {
+      "area": "Booking",
+      "question": "Can a booking be made on behalf of someone else, or only for oneself?",
+      "estimated_impact": "+1 day if delegation has to be handled",
+      "priority": "high"
+    },
+    {
+      "area": "Reporting",
+      "question": "Does actual usage come from the badge readers or from a check-in in the app?",
+      "estimated_impact": "+2 days if the badge readers have to be integrated",
+      "priority": "medium"
+    }
+  ]
+}

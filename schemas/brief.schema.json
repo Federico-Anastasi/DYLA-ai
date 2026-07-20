@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ask-dyla.local/schemas/brief.schema.json",
+  "title": "Brief — project definition document",
+  "description": "The brief we write ourselves from the transcripts of the meetings with the client, for projects whose source is 'discovery' (no ready-made document is handed to us, we build it meeting after meeting). It is the source of truth: it grows incrementally, one chapter at a time, and every addition coming from a new meeting is tracked together with the source it derives from. There is no dedicated export: the document is read and edited directly (markdown in the chapter bodies), and can optionally be exported as a single text by the backend.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "chapters"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "description": "Metadata of the project and of the brief.",
+      "additionalProperties": false,
+      "required": ["project", "title", "date"],
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project folder slug (projects/{project})."
+        },
+        "title": {
+          "type": "string",
+          "description": "Readable title of the project/brief, the one shown at the top of the document."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the last update of the brief (last meeting merged in), YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "client": {
+          "type": ["string", "null"],
+          "description": "Client of the project. Null if not known yet or not applicable."
+        },
+        "status": {
+          "type": "string",
+          "description": "Editorial state of the document, for the 'chat stays conversational' UX: 'draft' while it is still being refined with the user in chat (citing chapters and requirements by id), 'confirmed' once the user has validated the content. Optional field, for compatibility with pre-existing documents that do not carry it yet — a document without 'status' is treated as a draft.",
+          "enum": ["draft", "confirmed"]
+        },
+        "version": {
+          "type": "integer",
+          "description": "Version number of the brief, incremented by 1 every time a new meeting or a new document is merged into the text. Starts at 1 with the first draft.",
+          "minimum": 1
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-form notes on the brief as a whole (e.g. parts still to be validated with the client, areas explicitly out of scope). Null if there are none."
+        }
+      }
+    },
+    "chapters": {
+      "type": "array",
+      "description": "Chapters of the brief, in the order they should be presented in the document. Each chapter collects the content that matured across the meetings on the topic it covers; new chapters are added when a topic not yet covered emerges, existing chapters are updated when a later meeting adds or corrects details on the same theme.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "body"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the chapter, e.g. 'C1'. Referenced by requirements[].chapter to link requirements to the chapter that describes them.",
+            "pattern": "^C\\d+$"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the chapter, as it appears in the table of contents (e.g. 'Context and goals', 'Request intake flow')."
+          },
+          "level": {
+            "type": "integer",
+            "description": "Hierarchical level of the chapter in the table of contents: 1 for main sections, 2 for sub-sections, 3 for the finest detail. As a rule chapters stay at level 1 (conceptually each topic is a section of its own); use 2 or 3 only when a sub-topic really needs to be nested under a parent chapter.",
+            "minimum": 1,
+            "maximum": 3,
+            "default": 1
+          },
+          "body": {
+            "type": "string",
+            "description": "Content of the chapter in markdown. This is the actual text of the brief for this topic: a narrative description of processes, rules and constraints as they emerged from the meetings. Write it the way someone who was not on the call would read it — explicit, taking no meeting context for granted."
+          },
+          "sources": {
+            "type": "array",
+            "description": "Names of the files (meeting transcripts, documents shared by the client) the current content of the chapter derives from. It exists for traceability: if the client disputes a point of the brief, this field says immediately in which meeting it was stated. Update it every time a new source contributes to the chapter.",
+            "items": { "type": "string" }
+          },
+          "open": {
+            "type": "boolean",
+            "description": "True if the chapter is still incomplete: there are points waiting for an answer from the client or details to clarify in an upcoming meeting (see also questions.json for the explicit queue of questions). False or absent when the chapter is stable."
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "description": "Functional requirements extracted from the brief, in atomic form and referenceable by id — they are the link between the narrative text of the chapters and the other deliverables (estimate, data model). Optional: it may not exist yet in the early stages, when the brief is purely narrative.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the requirement, e.g. 'R1'. Used to cite it in chat and to link it from the estimate or the data model.",
+            "pattern": "^R\\d+$"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title of the requirement, summing up in a few words what it asks for (e.g. 'History of request status changes')."
+          },
+          "description": {
+            "type": "string",
+            "description": "Precise description of the requirement: what the system must do, under which conditions, with which exceptions. It must be self-contained — readable without going back to the chapter it came from."
+          },
+          "chapter": {
+            "type": "string",
+            "description": "Reference to chapters[].id — the chapter of the brief this requirement was extracted from.",
+            "pattern": "^C\\d+$"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Functional priority of the requirement, as stated by the client or assessed by the team.",
+            "enum": ["high", "medium", "low"]
+          },
+          "status": {
+            "type": "string",
+            "description": "Validation state of the requirement: 'proposed' when it is a working hypothesis not yet confirmed by the client, 'validated' when the client has explicitly confirmed it, 'changed' when a later meeting altered its content compared to the first draft.",
+            "enum": ["proposed", "validated", "changed"]
+          },
+          "source": {
+            "type": "string",
+            "description": "Name of the file (meeting or document) this requirement derives from, or in which it was confirmed or changed."
+          }
+        }
+      }
+    },
+    "glossary": {
+      "type": "array",
+      "description": "Glossary of the domain terms used in the brief (acronyms, product names, the client's internal terminology) that a reader outside the project would not know. Optional but useful from the first meeting on, when the first specific terms show up.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["term", "definition"],
+        "properties": {
+          "term": {
+            "type": "string",
+            "description": "The term or acronym to define, exactly as it is used in the meetings and in the text of the brief."
+          },
+          "definition": {
+            "type": "string",
+            "description": "Clear and concise definition of the term, in the specific context of this project and client."
+          }
+        }
+      }
+    },
+    "changelog": {
+      "type": "array",
+      "description": "The story of how the brief grew meeting after meeting, in chronological order. Each entry documents what changed in the document when a new source was merged in — useful to follow how the scope evolved without diffing whole versions of the text. Optional, but keep it updated every time meta.version is incremented.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["date", "source", "summary"],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Date the source was merged into the brief, YYYY-MM-DD format.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "source": {
+            "type": "string",
+            "description": "Name of the file (meeting or document) merged in at this step."
+          },
+          "summary": {
+            "type": "string",
+            "description": "Summary of what changed in the brief thanks to this source: chapters added or modified, new or revised requirements, ambiguities resolved."
+          }
+        }
+      }
+    }
+  }
+}

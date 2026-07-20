@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ask-dyla.local/schemas/agenda.schema.json",
+  "title": "Personal agenda",
+  "description": "The user's own activities, cutting across projects. It is not a project deliverable: it lives in runtime/agenda.json and is the source of the home page. An activity may relate to no project, to one, or span several of them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "items"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Date of the last update, YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form notes on the agenda as a whole."
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "description": "The activities, in no particular order: the display order is decided by the date.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Sequential identifier, e.g. A7.",
+            "pattern": "^A\\d+$"
+          },
+          "text": {
+            "type": "string",
+            "description": "What has to be done, in one line, the way the person would say it. Not a formal title: 'ask Smith about the export format' is fine, 'Alignment with client contact' is not.",
+            "minLength": 1
+          },
+          "projects": {
+            "type": "array",
+            "description": "The projects the activity touches. Empty for personal or organisational activities; more than one when the activity genuinely spans them (e.g. a meeting covering two engagements). The names may be projects that exist in projects/ or free text, for work not yet opened in the tool.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "due": {
+            "type": "string",
+            "description": "The day the activity should be done, YYYY-MM-DD format. Absent = no date: it stays in the inbox until a day is given to it.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "time": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "Time of day as HH:MM. It orders the items within a day and records when something actually has to happen: a call at 17:30 on a Friday is already too late. People dictating a note almost never say a time, so the model proposes a plausible one from the moment mentioned ('tomorrow morning') and from office hours; it stays a suggestion the user corrects in the preview. Absent when pinning a moment makes no sense."
+          },
+          "status": {
+            "type": "string",
+            "description": "State of the activity. 'done' is final; to postpone something you move 'due', you do not change the status.",
+            "enum": [
+              "open",
+              "done"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "description": "Urgency declared by whoever wrote the activity. Use sparingly: if everything is high priority, nothing is.",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "How the activity came to be: dictated out loud, typed by hand, or proposed by the agent during a conversation.",
+            "enum": [
+              "voice",
+              "manual",
+              "chat"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "description": "Detail that does not fit in the text: context, what is needed to do it, who is involved."
+          },
+          "created": {
+            "type": "string",
+            "description": "The day the activity was written down, YYYY-MM-DD format.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "completed": {
+            "type": "string",
+            "description": "The day it was marked as done, YYYY-MM-DD format.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        }
+      }
+    }
+  }
+}

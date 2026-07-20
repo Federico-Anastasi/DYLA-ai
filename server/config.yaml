@@ -1,0 +1,67 @@
+# Dyla — backend configuration
+
+# There is no "port" setting here on purpose: start.ps1 / start.sh own the port (3000)
+# because they are the ones who also have to check it is free before uvicorn starts —
+# a value here would be a second place to change and the one nothing actually reads.
+
+# Two profiles, and the local one is the point of this project: a small model running
+# on your own machine, doing real work inside a real workflow. Claude is the easy road
+# and it is here as the comparison, not as the destination.
+default_profile: local
+
+profiles:
+  # Local model via llama-server, which speaks the Anthropic API natively — so the agent
+  # talks to it exactly as it talks to the cloud, no shim in between.
+  #
+  # There are no subagents on this profile (see server/session_manager.py): every turn
+  # runs in the main conversation.
+  #
+  # Nothing about this machine is written here. The engine comes from LLAMA_SERVER if
+  # you built your own, otherwise Dyla downloads it; the model is whichever one you
+  # picked in the settings, and lives wherever MODELS_DIR says. Until there is a model,
+  # this profile is hidden rather than offered.
+  local:
+    label: "Local model (on this machine)"
+    env:
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:8080"
+      ANTHROPIC_AUTH_TOKEN: "dummy"   # llama-server does not authenticate
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    engine:
+      health_url: "http://127.0.0.1:8080/health"
+      exe: "${LLAMA_SERVER}"
+      # --jinja is required for tool calling: it makes llama.cpp use the chat template
+      # baked into the GGUF, which is what turns model output into tool_use blocks.
+      # The KV cache is quantised because the context does not fit at fp16.
+      # ${MODEL} is the model chosen in the settings, not a fixed file: which one to
+      # run is the user's decision and it changes without touching this config.
+      args: ["-m", "${MODEL}",
+             "-fa", "1", "--jinja",
+             "--host", "127.0.0.1", "--port", "8080",
+             "--slot-save-path", "runtime/slots",
+             "-np", "1", "--no-warmup", "--metrics",
+             # The engine asks for this one itself at startup ("chat template supports
+             # preserving reasoning, consider enabling it via --reasoning-preserve"). It
+             # keeps what is in the engine's cache aligned with what the client sends back
+             # on the next turn — and every mismatch there means recomputing the prompt
+             # from the point it diverges, which on a long conversation is minutes.
+             "--reasoning-preserve"]
+      # What changes from machine to machine. Dyla picks the right set by looking at
+      # what is actually here (nvidia-smi present, Apple Silicon, or neither) — the
+      # same flags that make this fly on a GPU rig stop it from starting on a laptop.
+      # The thread count on CPU is worked out at runtime, not written here.
+      platform_args:
+        # All layers on the GPUs, full context, KV quantised because at fp16 it does
+        # not fit.
+        cuda: ["-ngl", "999", "-c", "131072", "-ctk", "q8_0", "-ctv", "q8_0"]
+        # Apple Silicon shares memory between CPU and GPU, so the layers go on the GPU
+        # but the context stays smaller: it competes with everything else on the machine.
+        metal: ["-ngl", "999", "-c", "65536", "-ctk", "q8_0", "-ctv", "q8_0"]
+        # No accelerator: everything in RAM. The context is what costs here — 128k of
+        # KV cache is gigabytes, and on a machine with no GPU those gigabytes are the
+        # ones the rest of the system needs.
+        cpu: ["-ngl", "0", "-c", "16384", "-ctk", "q8_0", "-ctv", "q8_0"]
+
+  # The cloud comparison. Needs a Claude Code login (`claude` from a terminal).
+  sonnet:
+    label: "Claude Sonnet 5 (cloud)"
+    model: claude-sonnet-5

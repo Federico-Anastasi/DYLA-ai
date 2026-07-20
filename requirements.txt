@@ -1,0 +1,36 @@
+# Upper bounds are deliberate: this file is installed months or years after it was
+# written, and a major release of any of these can break the app in ways that look
+# like our bug. claude-agent-sdk is the one to watch — the shape of its messages has
+# changed between versions before.
+fastapi>=0.139,<1.0
+uvicorn>=0.32,<1.0
+python-multipart>=0.0.12,<0.1
+claude-agent-sdk>=0.2.122,<0.3
+pyyaml>=6.0,<7.0
+websockets>=13.0,<16.0
+jsonschema>=4.23,<5.0
+
+# Documents in, documents out.
+openpyxl>=3.1.5,<4.0
+pypdf>=5.1.0,<6.0
+python-docx>=1.1.2,<2.0
+python-pptx>=1.0.2,<2.0
+
+# Web search, scraped directly: three engines in parallel, pages extracted to markdown.
+# The built-in WebSearch tool talks to Anthropic's servers, which a local model cannot
+# reach — see server/websearch.py. http2 is required, not optional: some large sites
+# (Wikipedia among them) answer 403 over HTTP/1.1 whatever User-Agent you send.
+httpx[http2]>=0.27,<1.0
+beautifulsoup4>=4.12,<5.0
+lxml>=5.0,<7.0
+readability-lxml>=0.8.1,<0.9
+markdownify>=0.13,<2.0
+
+# Speech to text, on your own CPU. Pulls in PyAV, which bundles the ffmpeg libraries,
+# so there is nothing else to install. Models are downloaded on first use.
+faster-whisper>=1.1.0,<2.0
+# faster-whisper 1.1.0 imports requests (in utils.py) without declaring it: it used to
+# arrive via huggingface_hub, which has since moved to httpx. On an environment that
+# already has requests nothing looks wrong; in a clean venv the library installs and
+# then blows up on import, claiming it isn't installed.
+requests>=2.31,<3.0

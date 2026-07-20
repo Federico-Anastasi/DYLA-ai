@@ -1,0 +1,186 @@
+/* Plain theme — the neutral fallback (indigo blue) for projects with no design direction of their
+   own. It reuses the standard theme's structure, topbar plus horizontal tabs, with a generic
+   palette. There is no reference design to be faithful to here: the goal is simply that every
+   schema component renders sensibly. */
+
+.mk-shell-plain {
+  --mk-font: "Segoe UI", Arial, sans-serif;
+  --mk-bg: #F4F5F7;
+  --mk-text: #1A1A1A;
+  --mk-primary: #3B5BDB;
+  --mk-primary-dark: #2B45AD;
+  --mk-primary-light: #EAEDFB;
+  --mk-topbar-bg: #2B45AD;
+  --mk-info: #2B6CB0; --mk-info-bg: #E7F1FA;
+  --mk-success: #218838; --mk-success-bg: #E3F2E8;
+  --mk-warning: #B8860B; --mk-warning-bg: #FDF6D3;
+  --mk-error: #DC3545; --mk-error-bg: #FBE4E6;
+  --mk-border: #DADFE2;
+  --mk-radius-card: 7px;
+  --mk-radius-btn: 4px;
+  font-family: var(--mk-font); color: var(--mk-text); background: var(--mk-bg);
+  min-height: 100%; display: flex; flex-direction: column;
+  /* Containing block for .mk-modal-overlay (position:absolute;inset:0). */
+  position: relative;
+}
+.mk-shell-plain .mk-page-inner { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; width: 100%; }
+.mk-shell-plain .mk-main { padding: 22px 24px; flex: 1; }
+.mk-shell-plain .mk-topbar { background: var(--mk-topbar-bg); color: #fff; padding: 12px 22px; display: flex; align-items: center; justify-content: space-between; }
+.mk-shell-plain .mk-topbar-left { display: flex; align-items: center; gap: 10px; }
+.mk-shell-plain .mk-topbar-title { font-size: 17px; font-weight: 700; }
+.mk-shell-plain .mk-topbar-right { display: flex; align-items: center; gap: 14px; }
+.mk-shell-plain .mk-avatar { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,.28); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.mk-shell-plain .mk-topbar-user { font-size: 12.5px; }
+.mk-shell-plain .mk-brand-wordmark { font-style: italic; font-size: 14px; opacity: .85; }
+/* nav: horizontal pills inside the content flow (mk-page-inner), under the title — same placement
+   as standard.css, applied here too so the two structural themes stay consistent. */
+.mk-shell-plain .mk-nav-tabs { display: flex; gap: 7px; flex-wrap: wrap; }
+.mk-shell-plain .mk-nav-tabs .mk-nav-item { border: 1px solid #CCCCCC; background: #fff; color: #1a1a1a; padding: 7px 15px; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; }
+.mk-shell-plain .mk-nav-tabs .mk-nav-item.active { background: var(--mk-primary); border-color: var(--mk-primary); color: #fff; }
+.mk-shell-plain .mk-page-title { margin: 0; font-size: 26px; font-weight: 700; color: var(--mk-primary); }
+.mk-shell-plain .mk-page-title-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.mk-shell-plain .mk-back-link { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; color: var(--mk-primary); font-weight: 700; font-size: 13px; cursor: pointer; padding: 0; }
+.mk-shell-plain .mk-breadcrumb { font-size: 12.5px; color: #666; display: flex; gap: 6px; align-items: center; }
+.mk-shell-plain .mk-crumb-link { border: none; background: none; color: var(--mk-primary); cursor: pointer; padding: 0; font: inherit; }
+.mk-shell-plain .mk-crumb-current { color: #666; }
+.mk-shell-plain .mk-crumb-sep { color: #bbb; }
+.mk-shell-plain .mk-kpi-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.mk-shell-plain .mk-kpi-card { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); padding: 14px 18px; min-width: 160px; flex: 1; }
+.mk-shell-plain .mk-kpi-label { font-size: 11.5px; color: #666; margin-bottom: 5px; font-weight: 700; }
+.mk-shell-plain .mk-kpi-value { font-size: 21px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.mk-shell-plain .mk-trend-up { color: var(--mk-success); } .mk-shell-plain .mk-trend-down { color: var(--mk-error); } .mk-shell-plain .mk-trend-flat { color: #888; }
+.mk-shell-plain .mk-card { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.mk-shell-plain .mk-card-title { font-size: 15px; font-weight: 700; color: var(--mk-primary); }
+.mk-shell-plain .mk-section-title { font-size: 15px; font-weight: 700; color: var(--mk-primary); display: flex; align-items: center; gap: 7px; padding-bottom: 8px; border-bottom: 1px solid var(--mk-border); }
+.mk-shell-plain .mk-section-body { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+.mk-shell-plain .mk-filters-standard { display: flex; flex-direction: column; gap: 10px; }
+.mk-shell-plain .mk-filters-toggle { display: inline-flex; align-items: center; gap: 7px; border: none; background: none; color: var(--mk-primary); font-weight: 700; font-size: 14px; cursor: pointer; padding: 0; }
+.mk-shell-plain .mk-chevron { display: inline-flex; transition: transform .15s; transform: rotate(-90deg); }
+.mk-shell-plain .mk-filters-open .mk-chevron { transform: rotate(0deg); }
+.mk-shell-plain .mk-filters-body { display: flex; flex-wrap: wrap; gap: 14px 22px; padding: 10px 2px 2px; }
+.mk-shell-plain .mk-filter-field { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.mk-shell-plain .mk-filter-field label { font-weight: 700; color: #444; }
+.mk-shell-plain .mk-filter-value { color: #1a1a1a; }
+.mk-shell-plain .mk-filters-search { display: flex; gap: 8px; }
+.mk-shell-plain .mk-filters-search-input { border: 1px solid var(--mk-border); border-radius: var(--mk-radius-btn); padding: 7px 10px; font-size: 13px; font-family: inherit; }
+.mk-shell-plain .mk-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+.mk-shell-plain .mk-legend-title { font-weight: 700; }
+.mk-shell-plain .mk-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.mk-shell-plain .mk-legend-dot.mk-legend-grey { color: #999; } .mk-shell-plain .mk-legend-dot.mk-legend-red { color: #DC3545; }
+.mk-shell-plain .mk-legend-dot.mk-legend-green { color: #218838; } .mk-shell-plain .mk-legend-dot.mk-legend-blue { color: #2B6CB0; }
+.mk-shell-plain .mk-grid-block { display: flex; flex-direction: column; gap: 10px; }
+.mk-shell-plain .mk-grid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mk-shell-plain .mk-grid-title { font-size: 14.5px; font-weight: 700; }
+.mk-shell-plain .mk-search-box { position: relative; display: flex; align-items: center; margin-left: auto; }
+.mk-shell-plain .mk-search-box .icon-svg { position: absolute; left: 8px; color: #909499; }
+.mk-shell-plain .mk-grid-search { border: 1px solid var(--mk-border); border-radius: var(--mk-radius-btn); padding: 6px 9px 6px 28px; font-size: 12.5px; width: 200px; font-family: inherit; }
+.mk-shell-plain .mk-grid-wrap { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); overflow: auto; }
+.mk-shell-plain .mk-grid-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mk-shell-plain .mk-grid-table th { text-align: left; background: #fafbfa; font-weight: 700; padding: 9px 12px; border-bottom: 1px solid var(--mk-border); }
+.mk-shell-plain .mk-grid-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+.mk-shell-plain .mk-empty-row td { text-align: center; color: #999; padding: 20px; }
+.mk-shell-plain .mk-col-actions { white-space: nowrap; }
+.mk-shell-plain .mk-cell-link { border: none; background: none; color: var(--mk-primary); font-weight: 700; cursor: pointer; padding: 0; font: inherit; }
+.mk-shell-plain .mk-cell-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: var(--mk-primary-light); color: var(--mk-primary); }
+.mk-shell-plain .mk-cell-status.mk-status-success, .mk-shell-plain .mk-cell-sla.mk-sla-ok { color: var(--mk-success); }
+.mk-shell-plain .mk-cell-status.mk-status-warning { color: var(--mk-warning); }
+.mk-shell-plain .mk-cell-status.mk-status-error, .mk-shell-plain .mk-cell-sla.mk-sla-ko { color: var(--mk-error); }
+.mk-shell-plain .mk-cell-status.mk-status-info { color: var(--mk-info); }
+.mk-shell-plain .mk-cell-progress-track { width: 100px; height: 7px; border-radius: 4px; background: #E8ECEE; overflow: hidden; }
+.mk-shell-plain .mk-cell-progress-fill { height: 100%; background: var(--mk-primary); border-radius: 4px; }
+.mk-shell-plain .mk-grid-pagination { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #666; }
+.mk-shell-plain .mk-pagination-nav { display: flex; gap: 6px; color: #888; }
+.mk-shell-plain .mk-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 20px; }
+.mk-shell-plain .mk-form-field { display: flex; flex-direction: column; gap: 5px; }
+.mk-shell-plain .mk-form-field-wide { grid-column: 1 / -1; }
+.mk-shell-plain .mk-form-field label { font-size: 12.5px; font-weight: 700; color: #444; }
+.mk-shell-plain .mk-form-field input, .mk-shell-plain .mk-form-field select, .mk-shell-plain .mk-form-field textarea { border: 1px solid var(--mk-border); border-radius: var(--mk-radius-btn); padding: 8px 10px; font-size: 13.5px; font-family: inherit; }
+.mk-shell-plain .mk-form-field-checkbox label { flex-direction: row; align-items: center; display: flex; gap: 6px; }
+.mk-shell-plain .mk-req { color: var(--mk-error); }
+.mk-shell-plain .mk-detail-block { display: flex; flex-direction: column; gap: 12px; }
+.mk-shell-plain .mk-detail-section h4 { margin: 0 0 10px; font-size: 13.5px; color: var(--mk-primary-dark); }
+.mk-shell-plain .mk-detail-fields { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px 18px; }
+.mk-shell-plain .mk-detail-field { display: flex; flex-direction: column; gap: 2px; }
+.mk-shell-plain .mk-df-label { font-size: 11px; color: #888; }
+.mk-shell-plain .mk-df-value { font-size: 13px; }
+.mk-shell-plain .mk-tabs-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--mk-border); }
+.mk-shell-plain .mk-tab-btn { border: none; background: none; padding: 9px 14px; font-size: 12.5px; font-weight: 700; color: #666; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.mk-shell-plain .mk-tab-btn.active { color: var(--mk-primary); border-bottom-color: var(--mk-primary); }
+.mk-shell-plain .mk-tabs-body { padding-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+.mk-shell-plain .mk-banner { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; border-radius: 5px; font-size: 13px; border-left: 4px solid transparent; }
+.mk-shell-plain .mk-banner-info { background: var(--mk-info-bg); border-left-color: var(--mk-info); color: #1a4c8b; }
+.mk-shell-plain .mk-banner-success { background: var(--mk-success-bg); border-left-color: var(--mk-success); color: #17602a; }
+.mk-shell-plain .mk-banner-warning { background: var(--mk-warning-bg); border-left-color: #E8B622; color: #7a5b00; }
+.mk-shell-plain .mk-banner-error { background: var(--mk-error-bg); border-left-color: var(--mk-error); color: #8a1c28; }
+.mk-shell-plain .mk-banner-icon { display: inline-flex; flex-shrink: 0; }
+.mk-shell-plain .mk-actions-row { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.mk-shell-plain .mk-btn { border-radius: var(--mk-radius-btn); padding: 9px 18px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; font-family: inherit; display: inline-flex; align-items: center; gap: 7px; }
+.mk-shell-plain .mk-btn-primary { background: var(--mk-primary); color: #fff; }
+.mk-shell-plain .mk-btn-primary:hover { background: var(--mk-primary-dark); }
+.mk-shell-plain .mk-btn-secondary { background: #fff; color: #333; border-color: #ccc; }
+.mk-shell-plain .mk-btn-secondary:hover { border-color: var(--mk-primary); color: var(--mk-primary); }
+.mk-shell-plain .mk-btn-danger { background: #fff; color: var(--mk-error); border-color: var(--mk-error); }
+.mk-shell-plain .mk-btn-action { background: var(--mk-primary-dark); color: #fff; }
+.mk-shell-plain .mk-btn-small { padding: 5px 11px; font-size: 11.5px; }
+.mk-shell-plain .mk-link-btn { border: none; background: none; color: var(--mk-primary); font-weight: 700; cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 5px; }
+.mk-shell-plain .mk-statusbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 5px; font-weight: 700; font-size: 15px; color: #fff; }
+.mk-shell-plain .mk-statusbar-success { background: var(--mk-primary); }
+.mk-shell-plain .mk-statusbar-info { background: var(--mk-info); }
+.mk-shell-plain .mk-statusbar-warning { background: #C98A00; }
+.mk-shell-plain .mk-statusbar-error { background: var(--mk-error); }
+.mk-shell-plain .mk-wizard-horizontal { display: flex; }
+.mk-shell-plain .mk-wizard-step { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; flex: 1; }
+.mk-shell-plain .mk-wizard-circle { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; background: #E3E7E9; color: #667; }
+.mk-shell-plain .mk-wizard-step-active .mk-wizard-circle, .mk-shell-plain .mk-wizard-step-done .mk-wizard-circle { background: var(--mk-primary); color: #fff; }
+.mk-shell-plain .mk-wizard-label { font-size: 12px; font-weight: 600; }
+.mk-shell-plain .mk-wizard-connector { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: var(--mk-border); z-index: -1; }
+.mk-shell-plain .mk-state-progress { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+.mk-shell-plain .mk-state-progress-title { font-weight: 700; color: var(--mk-primary); margin-bottom: 6px; }
+.mk-shell-plain .mk-progress-step { display: flex; align-items: flex-start; gap: 10px; position: relative; padding-bottom: 22px; }
+.mk-shell-plain .mk-progress-circle { width: 24px; height: 24px; border-radius: 50%; background: #E3E7E9; color: #667; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; flex-shrink: 0; }
+.mk-shell-plain .mk-progress-step-active .mk-progress-circle, .mk-shell-plain .mk-progress-step-done .mk-progress-circle { background: var(--mk-primary); color: #fff; }
+.mk-shell-plain .mk-progress-label { font-size: 13px; font-weight: 600; display: block; }
+.mk-shell-plain .mk-progress-timestamp { font-size: 11px; color: #888; display: block; }
+.mk-shell-plain .mk-progress-connector { position: absolute; left: 11.5px; top: 24px; width: 1px; height: calc(100% - 24px); background: var(--mk-border); }
+.mk-shell-plain .mk-segmented { display: inline-flex; border: 1px solid var(--mk-border); border-radius: 999px; padding: 3px; gap: 2px; }
+.mk-shell-plain .mk-segmented-item { border: none; background: none; padding: 6px 16px; border-radius: 999px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #555; }
+.mk-shell-plain .mk-segmented-item.active { background: var(--mk-primary); color: #fff; }
+.mk-shell-plain .mk-tiles { display: flex; gap: 16px; flex-wrap: wrap; }
+.mk-shell-plain .mk-tile { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); padding: 18px; min-width: 160px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.mk-shell-plain .mk-tile-icon { color: var(--mk-primary); }
+.mk-shell-plain .mk-tile-label { font-weight: 700; font-size: 14px; }
+.mk-shell-plain .mk-tile-link { border: none; background: none; color: var(--mk-primary); font-weight: 700; cursor: pointer; padding: 0; }
+
+/* ── modal (dialog) — neutral styling, consistent with the rest of this theme. ── */
+.mk-shell-plain .mk-modal-overlay { position: absolute; inset: 0; z-index: 40; background: rgba(15, 18, 30, .55); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.mk-shell-plain .mk-modal-overlay[hidden] { display: none; }
+.mk-shell-plain .mk-modal-card { background: #fff; border-radius: var(--mk-radius-card); width: min(980px, 96%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; box-shadow: 0 14px 34px rgba(0,0,0,.28); }
+.mk-shell-plain .mk-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--mk-border); }
+.mk-shell-plain .mk-modal-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--mk-primary); }
+.mk-shell-plain .mk-modal-close { border: none; background: none; color: #666; cursor: pointer; padding: 4px; border-radius: 4px; display: inline-flex; }
+.mk-shell-plain .mk-modal-close:hover { background: #EFEFEF; color: var(--mk-text); }
+.mk-shell-plain .mk-modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.mk-shell-plain .mk-modal-body .mk-detail-fields { grid-template-columns: repeat(4, minmax(0,1fr)); }
+
+/* ── collapsible section / split action bar / sidebar-nav: same structure as standard.css — this
+   theme reuses that layout as its default and only swaps in a neutral palette. ── */
+.mk-shell-plain .mk-section-title-toggle { cursor: pointer; user-select: none; }
+.mk-shell-plain .mk-section-title-toggle .mk-chevron { display: inline-flex; transform: rotate(-90deg); transition: transform .15s; }
+.mk-shell-plain .mk-section-title-toggle .mk-chevron.mk-chevron-open { transform: rotate(0deg); }
+.mk-shell-plain .mk-actions-row.mk-actions-split { justify-content: space-between; }
+.mk-shell-plain .mk-actions-split-start, .mk-shell-plain .mk-actions-split-end { display: flex; gap: 10px; flex-wrap: wrap; }
+.mk-shell-plain .mk-sidenav-block { display: flex; gap: 22px; align-items: flex-start; }
+.mk-shell-plain .mk-sidenav-menu { width: 250px; flex-shrink: 0; background: var(--mk-primary-light); border-radius: var(--mk-radius-card); padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.mk-shell-plain .mk-sidenav-title { font-weight: 700; color: var(--mk-primary-dark); font-size: 14px; }
+.mk-shell-plain .mk-sidenav-items { display: flex; flex-direction: column; gap: 9px; }
+.mk-shell-plain .mk-sidenav-item { border: none; background: none; text-align: left; padding: 0; font-size: 13px; font-weight: 600; color: var(--mk-primary); cursor: pointer; font-family: inherit; }
+.mk-shell-plain .mk-sidenav-item.active { color: var(--mk-text); font-weight: 700; }
+.mk-shell-plain .mk-sidenav-item:hover:not(.active) { text-decoration: underline; }
+.mk-shell-plain .mk-sidenav-info { background: #fff; border: 1px solid var(--mk-info); border-left: 4px solid var(--mk-info); border-radius: 5px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.mk-shell-plain .mk-sidenav-info-title { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--mk-info); }
+.mk-shell-plain .mk-sidenav-info-field { display: flex; gap: 5px; flex-wrap: wrap; }
+.mk-shell-plain .mk-sidenav-info-label { font-weight: 600; color: #555; }
+.mk-shell-plain .mk-sidenav-info-label::after { content: ":"; }
+.mk-shell-plain .mk-sidenav-alerts-title { font-weight: 700; margin-bottom: 5px; font-size: 12.5px; }
+.mk-shell-plain .mk-sidenav-alert-item { background: var(--mk-warning-bg); color: #7a5b00; font-size: 11.5px; font-weight: 600; padding: 5px 9px; border-radius: 4px; margin-bottom: 5px; }
+.mk-shell-plain .mk-sidenav-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }

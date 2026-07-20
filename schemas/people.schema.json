@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ask-dyla.local/schemas/people.schema.json",
+  "title": "Project people",
+  "description": "Directory of the people involved in a project (the client, our own team, any third parties). It exists so you can tell quickly who to ask about something, who decides on an area, and who said what in the meetings — linkable from questions.json (the addressee field) and from brief.json (sources). It holds personal data of colleagues and of people on the client side: it stays local to the project in projects/{project}/, and must not be exported or shared outside the project itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "people"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "description": "Metadata of the project.",
+      "additionalProperties": false,
+      "required": ["project", "date"],
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project folder slug (projects/{project})."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the last update of the people directory, YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-form notes on how the project is organised (e.g. the main contact for escalations, the hours the client is available). Null if there are none."
+        }
+      }
+    },
+    "people": {
+      "type": "array",
+      "description": "The people involved in the project, one per row. It covers both the client side and the members of our team and of any third parties — not only the direct counterparts in the meetings, but anyone with a role worth knowing about (who decides, who develops, who to contact for a technical doubt).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "role", "organization"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Lowercase slug identifier (e.g. 'm-smith'), used for references from other deliverables (e.g. addressee in questions.json). Lowercase letters, digits, hyphens and underscores only.",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the person, as it should be used to recognise them in meetings and documents."
+          },
+          "role": {
+            "type": "string",
+            "description": "Role held in the project (e.g. 'key user', 'head of operations', 'project manager', 'technical contact', 'developer'). Free-form: use the wording that makes it clear what this person does on the project, not a generic job title."
+          },
+          "organization": {
+            "type": "string",
+            "description": "Which side the person is on: 'client' if they belong to the organisation we are working for, 'us' if they are part of our own team, 'third_party' for external vendors or consultants that fall under neither of the first two.",
+            "enum": ["client", "us", "third_party"]
+          },
+          "area": {
+            "type": "string",
+            "description": "Department or functional area the person is responsible for (e.g. 'Operations', 'IT', 'Compliance'). Helps to see at a glance which part of the project they relate to."
+          },
+          "contact": {
+            "type": "string",
+            "description": "How to reach the person (email or another channel). Optional, but useful when you need to write directly without going through the project manager."
+          },
+          "notes": {
+            "type": "string",
+            "description": "What this person knows and decides on: this is the field that makes the file useful when you need to work out who to ask about something specific (e.g. 'the only one who knows the legacy fee calculation rules', 'decides on exceptions to the limits, does not answer technical questions')."
+          }
+        }
+      }
+    }
+  }
+}

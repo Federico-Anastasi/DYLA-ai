@@ -1,0 +1,18 @@
+projects/
+runtime/
+.venv/
+.env
+.mcp.json
+
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# The web build is committed on purpose: it lets people run Dyla without Node.
+dist/
+!web/dist/
+build/
+
+.DS_Store
+Thumbs.db

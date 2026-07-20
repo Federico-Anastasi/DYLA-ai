@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ask-dyla.local/schemas/questions.schema.json",
+  "title": "Open questions",
+  "description": "The queue of open questions towards the client for a project. It is the working register of everything not yet clarified: it feeds the next meetings (what to ask) and tracks the answers as they arrive, so that nobody loses track of who was supposed to answer what, and of how the answer would affect the estimate, the data model or the requirements. It is not a static list: questions are opened, asked, answered and closed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "questions"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "description": "Metadata of the project.",
+      "additionalProperties": false,
+      "required": ["project", "date"],
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project folder slug (projects/{project})."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the last update of the question queue, YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-form notes on how questions are handled for this project (e.g. the channel used to send them to the client, the cadence of the clarification meetings). Null if there are none."
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "description": "The questions, in the order they were opened. Each question is a standalone item that follows its own life cycle (see 'status') independently of the others.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "question", "status"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the question, e.g. 'Q1'. Used to cite it in chat and to link it from other deliverables (e.g. a note in estimate.json pointing at an open question).",
+            "pattern": "^Q\\d+$"
+          },
+          "question": {
+            "type": "string",
+            "description": "Text of the question exactly as it should be asked to the client: clear, self-contained, phrased so that the answer is unambiguous (avoid questions that can only be answered with more questions)."
+          },
+          "area": {
+            "type": "string",
+            "description": "Functional area the question refers to (e.g. 'Permissions', 'File import', 'Notifications'). Helps to group questions once many pile up."
+          },
+          "addressee": {
+            "type": "string",
+            "description": "Name or role of the person who should answer (e.g. 'Head of operations', or the name of a person listed in people.json). It may stay empty while it is still unclear who the question should go to."
+          },
+          "source": {
+            "type": "string",
+            "description": "Meeting or document the doubt behind this question came from — it lets you recover the context if the question stops being self-explanatory over time."
+          },
+          "status": {
+            "type": "string",
+            "description": "Life-cycle state of the question: 'open' once identified but not yet communicated to the client, 'asked' once sent and waiting for an answer, 'answered' when the client has replied but the answer has not been folded into the deliverables yet, 'closed' when the answer has been applied (e.g. the brief or the estimate have already been updated accordingly).",
+            "enum": ["open", "asked", "answered", "closed"]
+          },
+          "answer": {
+            "type": "string",
+            "description": "Text of the answer received from the client. It only makes sense to fill it in when 'status' is 'answered' or 'closed'; leave it absent for questions still open or asked."
+          },
+          "impact": {
+            "type": "string",
+            "description": "What changes in the deliverables depending on the answer (e.g. 'if yes, +1 day on the permissions epic', 'changes the cardinality of the Request-Attachment relation in the data model'). Fill it in when the question is opened, not later: it is what justifies its priority."
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority of the question: how urgently the answer is needed before the estimate or the data model can move forward without risking rework.",
+            "enum": ["high", "medium", "low"]
+          },
+          "opened_at": {
+            "type": "string",
+            "description": "Date the question was identified (status became 'open'), YYYY-MM-DD format.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "answered_at": {
+            "type": "string",
+            "description": "Date the client's answer arrived (status became 'answered'), YYYY-MM-DD format. Absent until the question has been answered.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        }
+      }
+    }
+  }
+}

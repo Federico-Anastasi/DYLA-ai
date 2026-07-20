@@ -1,0 +1,188 @@
+{
+ "bars": [
+  {
+   "id": "E1.T1.D1",
+   "dev": "d1",
+   "from": "2026-09-07",
+   "to": "2026-09-08",
+   "position": 0,
+   "spanDays": 2,
+   "startOffset": 0.0,
+   "endOffset": 0.5,
+   "conflict": false
+  },
+  {
+   "id": "E1.T1.D2",
+   "dev": "d1",
+   "from": "2026-09-08",
+   "to": "2026-09-09",
+   "position": 1,
+   "spanDays": 2,
+   "startOffset": 0.5,
+   "endOffset": 0.75,
+   "conflict": false
+  },
+  {
+   "id": "E1.T1.D3",
+   "dev": "d1",
+   "from": "2026-09-09",
+   "to": "2026-09-11",
+   "position": 2,
+   "spanDays": 2,
+   "startOffset": 0.75,
+   "endOffset": 0.5,
+   "conflict": true
+  },
+  {
+   "id": "E1.T2.D1",
+   "dev": "d1",
+   "from": "2026-09-11",
+   "to": "2026-09-14",
+   "position": 3,
+   "spanDays": 2,
+   "startOffset": 0.5,
+   "endOffset": 1.0,
+   "conflict": false
+  },
+  {
+   "id": "E1.T2.D2",
+   "dev": "d1",
+   "from": "2026-09-15",
+   "to": "2026-09-15",
+   "position": 4,
+   "spanDays": 1,
+   "startOffset": 0.0,
+   "endOffset": 0.75,
+   "conflict": false
+  },
+  {
+   "id": "E1.E2E",
+   "dev": "d1",
+   "from": "2026-09-15",
+   "to": "2026-09-16",
+   "position": 5,
+   "spanDays": 2,
+   "startOffset": 0.75,
+   "endOffset": 0.75,
+   "conflict": false
+  },
+  {
+   "id": "E2.T1.D1",
+   "dev": "d2",
+   "from": "2026-09-07",
+   "to": "2026-09-07",
+   "position": 0,
+   "spanDays": 1,
+   "startOffset": 0.0,
+   "endOffset": 1.0,
+   "conflict": false
+  },
+  {
+   "id": "E2.T1.D2",
+   "dev": "d2",
+   "from": "2026-09-08",
+   "to": "2026-09-11",
+   "position": 1,
+   "spanDays": 3,
+   "startOffset": 0.0,
+   "endOffset": 0.5,
+   "conflict": false
+  },
+  {
+   "id": "E2.T1.D3",
+   "dev": "d2",
+   "from": "2026-09-11",
+   "to": "2026-09-14",
+   "position": 2,
+   "spanDays": 2,
+   "startOffset": 0.5,
+   "endOffset": 0.75,
+   "conflict": false
+  },
+  {
+   "id": "E2.T1.D4",
+   "dev": "d2",
+   "from": "2026-09-14",
+   "to": "2026-09-15",
+   "position": 3,
+   "spanDays": 2,
+   "startOffset": 0.75,
+   "endOffset": 0.5,
+   "conflict": false
+  },
+  {
+   "id": "E3.E2E",
+   "dev": "d2",
+   "from": "2026-09-15",
+   "to": "2026-09-15",
+   "position": 4,
+   "spanDays": 1,
+   "startOffset": 0.5,
+   "endOffset": 1.0,
+   "conflict": false
+  },
+  {
+   "id": "E3.T1.D1",
+   "dev": "d3",
+   "from": "2026-09-07",
+   "to": "2026-09-08",
+   "position": 0,
+   "spanDays": 2,
+   "startOffset": 0.0,
+   "endOffset": 0.5,
+   "conflict": false
+  },
+  {
+   "id": "E3.T1.D2",
+   "dev": "d3",
+   "from": "2026-09-08",
+   "to": "2026-09-09",
+   "position": 1,
+   "spanDays": 2,
+   "startOffset": 0.5,
+   "endOffset": 0.75,
+   "conflict": false
+  },
+  {
+   "id": "E2.T2.D1",
+   "dev": "d3",
+   "from": "2026-09-09",
+   "to": "2026-09-11",
+   "position": 2,
+   "spanDays": 2,
+   "startOffset": 0.75,
+   "endOffset": 1.0,
+   "conflict": true
+  },
+  {
+   "id": "E2.T2.D2",
+   "dev": "d3",
+   "from": "2026-09-17",
+   "to": "2026-09-17",
+   "position": 3,
+   "spanDays": 1,
+   "startOffset": 0.0,
+   "endOffset": 0.75,
+   "conflict": false
+  },
+  {
+   "id": "E2.E2E",
+   "dev": "d3",
+   "from": "2026-09-17",
+   "to": "2026-09-21",
+   "position": 4,
+   "spanDays": 3,
+   "startOffset": 0.75,
+   "endOffset": 0.25,
+   "conflict": false
+  }
+ ],
+ "from": "2026-09-07",
+ "to": "2026-09-21",
+ "load": {
+  "d1": 6.75,
+  "d2": 6.0,
+  "d3": 6.25
+ },
+ "unplanned": []
+}

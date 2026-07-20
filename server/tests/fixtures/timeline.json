@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "project": "sample",
+    "date": "2026-07-20",
+    "status": "confirmed",
+    "notes": "Synthetic plan that goes with fixtures/estimate.json. It is built to exercise the awkward parts of the engine rather than the easy ones: a company closure in the middle of the plan, one developer on leave while their lane is still running, fractional days that do not land on day boundaries, and two items deliberately left out of the lanes so that reconcile() has to place them."
+  },
+  "start_date": "2026-09-07",
+  "team": [
+    {
+      "id": "d1",
+      "name": "Alice Moreau"
+    },
+    {
+      "id": "d2",
+      "name": "Bruno Serra"
+    },
+    {
+      "id": "d3",
+      "name": "Chiara Neri",
+      "leave": [
+        {
+          "from": "2026-09-14",
+          "to": "2026-09-16",
+          "reason": "holiday"
+        }
+      ]
+    }
+  ],
+  "holidays": [
+    {
+      "date": "2026-09-10",
+      "name": "Company closure"
+    }
+  ],
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Development start",
+      "date": "2026-09-07",
+      "status": "planned"
+    },
+    {
+      "id": "M2",
+      "name": "Demo to the users",
+      "date": "2026-09-25",
+      "status": "planned",
+      "notes": "The booking calendar has to be walkable end to end by this date."
+    }
+  ],
+  "states": [
+    {
+      "dev_task_id": "E1.T1.D1",
+      "status": "done"
+    },
+    {
+      "dev_task_id": "E1.T1.D2",
+      "status": "wip"
+    }
+  ],
+  "lanes": [
+    {
+      "dev": "d1",
+      "items": [
+        "E1.T1.D1",
+        "E1.T1.D2",
+        "E1.T1.D3",
+        "E1.T2.D1",
+        "E1.T2.D2",
+        "E1.E2E"
+      ]
+    },
+    {
+      "dev": "d2",
+      "items": [
+        "E2.T1.D1",
+        "E2.T1.D2",
+        "E2.T1.D3",
+        "E2.T1.D4"
+      ]
+    },
+    {
+      "dev": "d3",
+      "items": [
+        "E3.T1.D1",
+        "E3.T1.D2",
+        "E2.T2.D1",
+        "E2.T2.D2"
+      ]
+    }
+  ]
+}

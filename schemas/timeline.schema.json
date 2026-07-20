@@ -1,0 +1,222 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Project timeline",
+  "description": "The project plan. It lives in 'lanes': for each developer, the ordered row of items they will work on. Dates are not stored: they are recomputed from the lanes by filling each person's capacity (one day of work per workable day, weekends and leave excluded), so the plan stays valid when the estimate changes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "team",
+    "start_date"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project",
+        "date"
+      ],
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Name of the project (folder in projects/)."
+        },
+        "date": {
+          "type": "string",
+          "description": "Generation date, YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form notes on the plan."
+        },
+        "status": {
+          "type": "string",
+          "description": "Editorial state of the document.",
+          "enum": [
+            "draft",
+            "confirmed"
+          ]
+        }
+      }
+    },
+    "start_date": {
+      "type": "string",
+      "description": "First working day of the project, YYYY-MM-DD format. If it falls on a non-working day, scheduling starts from the first workable day after it.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "team": {
+      "type": "array",
+      "description": "The available developers. The order is the display order in the timeline.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier of the developer, used in lanes[].dev.",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Name displayed in the timeline and in the exports.",
+            "minLength": 1
+          },
+          "leave": {
+            "type": "array",
+            "description": "Periods when the developer is away. Both ends are inclusive.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "from",
+                "to"
+              ],
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "description": "First day away, YYYY-MM-DD.",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "to": {
+                  "type": "string",
+                  "description": "Last day away, inclusive, YYYY-MM-DD.",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Free-form label (holiday, training, another project)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "holidays": {
+      "type": "array",
+      "description": "Non-working days that apply to the whole team, on top of Saturdays and Sundays. National public holidays are preloaded by the frontend: only local holidays, company closures and exceptions go here.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The non-working day, YYYY-MM-DD.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "name": {
+            "type": "string",
+            "description": "Label of the holiday."
+          }
+        }
+      }
+    },
+    "milestones": {
+      "type": "array",
+      "description": "The contractual and project deadlines (analysis delivered, estimate approved, development start, acceptance testing, go-live, end of warranty). They are not dev tasks and consume no team capacity: they are the dates shown to the client in the status report Gantt, and this is the only place where the project knows when it has to deliver.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "date"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the milestone, e.g. M1.",
+            "pattern": "^M\\d+$"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name the client can read, e.g. 'Analysis delivered' or 'Go-live'."
+          },
+          "date": {
+            "type": "string",
+            "description": "Planned or actual date, YYYY-MM-DD.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "status": {
+            "type": "string",
+            "description": "State of the milestone. 'at_risk' is for when the date is still the official one but the plan no longer supports it: that is the most useful piece of information in a status report.",
+            "enum": [
+              "planned",
+              "in_progress",
+              "completed",
+              "at_risk"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "description": "Context: what is being delivered, what it depends on, why it is at risk."
+          }
+        }
+      }
+    },
+    "states": {
+      "type": "array",
+      "description": "Progress of the items, maintained by hand by the user. Only the items moved away from 'todo' appear here: anything missing is still to be done.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dev_task_id",
+          "status"
+        ],
+        "properties": {
+          "dev_task_id": {
+            "type": "string",
+            "description": "Id of the item: a dev task from estimate.json (e.g. 'E2.T3.D1') or the E2E test row of an epic (e.g. 'E2.E2E').",
+            "pattern": "^E\\d+\\.(T\\d+\\.D\\d+|E2E)$"
+          },
+          "status": {
+            "type": "string",
+            "description": "todo = to be done (the implicit default), wip = in progress, done = completed.",
+            "enum": [
+              "todo",
+              "wip",
+              "done"
+            ]
+          }
+        }
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "description": "The plan itself: for each developer, the ordered row of items they will work on. The order is the execution order, and the dates are recomputed from it by filling their capacity (one day of work per workable day). Absent = the plan has not been generated yet: the board creates it by distributing the items evenly.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dev",
+          "items"
+        ],
+        "properties": {
+          "dev": {
+            "type": "string",
+            "description": "Id of the developer in team[].id."
+          },
+          "items": {
+            "type": "array",
+            "description": "Ids of the items in execution order: dev tasks from estimate.json (e.g. 'E2.T3.D1') or E2E test rows (e.g. 'E2.E2E').",
+            "items": {
+              "type": "string",
+              "pattern": "^E\\d+\\.(T\\d+\\.D\\d+|E2E)$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

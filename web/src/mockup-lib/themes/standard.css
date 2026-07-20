@@ -1,0 +1,318 @@
+/* Standard theme — the dense enterprise look: system font, a muted teal accent, a dark full-width
+   topbar and horizontal pill tabs, very flat cards (barely any shadow), uppercase button labels.
+   Every rule is scoped under .mk-shell-standard so this theme and the others can ship in the same
+   bundle without bleeding into each other. */
+
+.mk-shell-standard {
+  --mk-font: "Segoe UI", Arial, sans-serif;
+  --mk-bg: #F4F5F3;
+  --mk-text: #1A1A1A;
+  --mk-primary: #2F6F7E;       /* page title, active tab, links, primary button */
+  --mk-primary-dark: #1F4E5A;  /* hover, pressed */
+  --mk-primary-light: #E3F0F3; /* side menu card, table header tint */
+  --mk-topbar-bg: #234A54;     /* dark application bar */
+  --mk-info: #2B6CB0;
+  --mk-info-bg: #E7F1FA;
+  --mk-success: #218838;
+  --mk-success-bg: #E3F2E8;
+  --mk-warning: #B8860B;
+  --mk-warning-bg: #FDF6D3;
+  --mk-error: #DC3545;
+  --mk-error-bg: #FBE4E6;
+  --mk-neutral: #6C757D;
+  --mk-neutral-bg: #EFEFEF;
+  --mk-border: #DADFE2;
+  --mk-radius-card: 7px;
+  --mk-radius-btn: 4px;
+
+  font-family: var(--mk-font);
+  color: var(--mk-text);
+  background: var(--mk-bg);
+  /* Always fill the container (viewer panel or exported body). Without this the page stops where
+     the content stops and leaves an empty gap underneath. */
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Containing block for .mk-modal-overlay (position:absolute;inset:0): the dialog covers the
+     mockup panel, not the whole app hosting it. */
+  position: relative;
+}
+
+.mk-shell-standard .mk-page-inner { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; width: 100%; }
+.mk-shell-standard .mk-main { padding: 22px 24px; flex: 1; }
+
+/* ── topbar ── */
+.mk-shell-standard .mk-topbar {
+  background: var(--mk-topbar-bg); color: #fff; padding: 12px 22px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.mk-shell-standard .mk-topbar-left { display: flex; align-items: center; gap: 10px; }
+.mk-shell-standard .mk-topbar-title { font-size: 17px; font-weight: 700; letter-spacing: .2px; }
+.mk-shell-standard .mk-topbar-right { display: flex; align-items: center; gap: 14px; }
+.mk-shell-standard .mk-avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,.28);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+  border: 1px solid rgba(255,255,255,.5);
+}
+.mk-shell-standard .mk-topbar-user { font-size: 12.5px; }
+.mk-shell-standard .mk-brand-wordmark { font-style: italic; font-size: 14px; opacity: .85; }
+
+/* ── nav: horizontal pills that live INSIDE the content flow (mk-page-inner), right under the page
+   title — not a full-width bar glued to the topbar. The reading order is: back link -> title ->
+   pill tabs -> the rest. Vertical spacing towards the elements above and below already comes from
+   the gap on .mk-page-inner. */
+.mk-shell-standard .mk-nav-tabs { display: flex; gap: 7px; flex-wrap: wrap; }
+.mk-shell-standard .mk-nav-tabs .mk-nav-item {
+  border: 1px solid #CCCCCC; background: #fff; color: #1a1a1a; padding: 7px 15px; border-radius: 5px;
+  font-size: 12px; font-weight: 700; letter-spacing: .3px; cursor: pointer; text-transform: uppercase;
+}
+.mk-shell-standard .mk-nav-tabs .mk-nav-item.active { background: var(--mk-primary); border-color: var(--mk-primary); color: #fff; }
+.mk-shell-standard .mk-nav-tabs .mk-nav-item:hover:not(.active) { border-color: var(--mk-primary); color: var(--mk-primary); }
+
+/* ── page title: back link on top of a large centred title in the primary colour ── */
+.mk-shell-standard .mk-page-title-block { display: flex; flex-direction: column; align-items: center; gap: 10px; position: relative; }
+.mk-shell-standard .mk-back-link {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; border: none; background: none;
+  color: var(--mk-primary); font-weight: 700; font-size: 13px; cursor: pointer; padding: 0;
+}
+.mk-shell-standard .mk-back-link:hover { text-decoration: underline; }
+.mk-shell-standard .mk-page-title { margin: 0; font-size: 30px; font-weight: 700; color: var(--mk-primary); text-align: center; }
+.mk-shell-standard .mk-page-title-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.mk-shell-standard .mk-btn-label-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+
+/* ── breadcrumb: this theme collapses it into a single "Back" link (see Breadcrumb.tsx) ── */
+.mk-shell-standard .mk-breadcrumb { font-size: 12.5px; color: #666; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mk-shell-standard .mk-crumb-link { border: none; background: none; color: var(--mk-primary); cursor: pointer; padding: 0; font: inherit; }
+.mk-shell-standard .mk-crumb-current { color: #666; }
+.mk-shell-standard .mk-crumb-sep { color: #bbb; }
+
+/* ── kpi row: flat cards ── */
+.mk-shell-standard .mk-kpi-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.mk-shell-standard .mk-kpi-card { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); padding: 14px 18px; min-width: 160px; flex: 1; }
+.mk-shell-standard .mk-kpi-label { font-size: 11.5px; color: #666; margin-bottom: 5px; font-weight: 700; }
+.mk-shell-standard .mk-kpi-value { font-size: 21px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.mk-shell-standard .mk-trend-up { color: var(--mk-success); } .mk-shell-standard .mk-trend-down { color: var(--mk-error); } .mk-shell-standard .mk-trend-flat { color: #888; }
+
+/* ── generic card (form/detail/section) ── */
+.mk-shell-standard .mk-card { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.mk-shell-standard .mk-card-title { font-size: 15px; font-weight: 700; color: var(--mk-primary); }
+.mk-shell-standard .mk-section-title { font-size: 15px; font-weight: 700; color: var(--mk-primary); display: flex; align-items: center; gap: 7px; padding-bottom: 8px; border-bottom: 1px solid var(--mk-border); }
+.mk-shell-standard .mk-section-body { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+
+/* ── filters: collapsible block with chevron + magnifier ── */
+.mk-shell-standard .mk-filters-standard { display: flex; flex-direction: column; gap: 10px; }
+.mk-shell-standard .mk-filters-toggle { display: inline-flex; align-items: center; gap: 7px; border: none; background: none; color: var(--mk-primary); font-weight: 700; font-size: 14px; cursor: pointer; padding: 0; }
+.mk-shell-standard .mk-chevron { display: inline-flex; transition: transform .15s; transform: rotate(-90deg); }
+.mk-shell-standard .mk-filters-open .mk-chevron { transform: rotate(0deg); }
+.mk-shell-standard .mk-filters-body { display: flex; flex-wrap: wrap; gap: 14px 22px; padding: 10px 2px 2px; }
+.mk-shell-standard .mk-filter-field { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.mk-shell-standard .mk-filter-field label { font-weight: 700; color: #444; }
+.mk-shell-standard .mk-filter-value { color: #1a1a1a; }
+.mk-shell-standard .mk-filters-search { display: flex; gap: 8px; }
+.mk-shell-standard .mk-filters-search-input { border: 1px solid var(--mk-border); border-radius: var(--mk-radius-btn); padding: 7px 10px; font-size: 13px; font-family: inherit; }
+
+/* ── star legend ── */
+.mk-shell-standard .mk-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+.mk-shell-standard .mk-legend-title { font-weight: 700; }
+.mk-shell-standard .mk-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.mk-shell-standard .mk-legend-dot { display: inline-flex; }
+.mk-shell-standard .mk-legend-dot.mk-legend-grey { color: #999999; }
+.mk-shell-standard .mk-legend-dot.mk-legend-red { color: #C0234F; }
+.mk-shell-standard .mk-legend-dot.mk-legend-green { color: #2E9E44; }
+.mk-shell-standard .mk-legend-dot.mk-legend-blue { color: #2255CC; }
+
+/* ── grid ── */
+.mk-shell-standard .mk-grid-block { display: flex; flex-direction: column; gap: 10px; }
+.mk-shell-standard .mk-grid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mk-shell-standard .mk-grid-title { font-size: 14.5px; font-weight: 700; }
+.mk-shell-standard .mk-search-box { position: relative; display: flex; align-items: center; margin-left: auto; }
+.mk-shell-standard .mk-search-box .icon-svg { position: absolute; left: 8px; color: #909499; pointer-events: none; }
+.mk-shell-standard .mk-grid-search { border: 1px solid var(--mk-border); border-radius: var(--mk-radius-btn); padding: 6px 9px 6px 28px; font-size: 12.5px; width: 200px; font-family: inherit; }
+.mk-shell-standard .mk-grid-wrap { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); overflow: auto; }
+.mk-shell-standard .mk-grid-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mk-shell-standard .mk-grid-table th { text-align: left; background: #fafbfa; color: #1a1a1a; font-weight: 700; padding: 9px 12px; border-bottom: 1px solid var(--mk-border); white-space: nowrap; }
+.mk-shell-standard .mk-grid-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+.mk-shell-standard .mk-grid-table tbody tr:hover { background: #fafbfc; }
+.mk-shell-standard .mk-col-actions { white-space: nowrap; }
+.mk-shell-standard .mk-empty-row td { text-align: center; color: #999; padding: 20px; }
+.mk-shell-standard .mk-cell-link { border: none; background: none; color: var(--mk-primary); font-weight: 700; cursor: pointer; padding: 0; font: inherit; }
+.mk-shell-standard .mk-cell-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: var(--mk-primary-light); color: var(--mk-primary); }
+.mk-shell-standard .mk-cell-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.mk-shell-standard .mk-cell-status.mk-status-success { color: var(--mk-success); }
+.mk-shell-standard .mk-cell-status.mk-status-warning { color: var(--mk-warning); }
+.mk-shell-standard .mk-cell-status.mk-status-error { color: var(--mk-error); }
+.mk-shell-standard .mk-cell-status.mk-status-info { color: var(--mk-info); }
+.mk-shell-standard .mk-cell-sla { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.mk-shell-standard .mk-cell-sla.mk-sla-ok { color: var(--mk-success); }
+.mk-shell-standard .mk-cell-sla.mk-sla-ko { color: var(--mk-error); }
+.mk-shell-standard .mk-cell-progress-track { width: 100px; height: 7px; border-radius: 4px; background: #E8ECEE; overflow: hidden; }
+.mk-shell-standard .mk-cell-progress-fill { height: 100%; background: var(--mk-primary); border-radius: 4px; }
+.mk-shell-standard .mk-grid-pagination { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #666; padding: 2px 4px; }
+.mk-shell-standard .mk-pagination-nav { display: flex; gap: 6px; color: #888; }
+
+/* ── form ── */
+.mk-shell-standard .mk-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 20px; }
+.mk-shell-standard .mk-form-field { display: flex; flex-direction: column; gap: 5px; }
+.mk-shell-standard .mk-form-field-wide { grid-column: 1 / -1; }
+.mk-shell-standard .mk-form-field label { font-size: 12.5px; font-weight: 700; color: #444; }
+.mk-shell-standard .mk-form-field input, .mk-shell-standard .mk-form-field select, .mk-shell-standard .mk-form-field textarea {
+  border: 1px solid var(--mk-border); border-radius: var(--mk-radius-btn); padding: 8px 10px; font-size: 13.5px; font-family: inherit;
+}
+.mk-shell-standard .mk-form-field-checkbox label { flex-direction: row; align-items: center; display: flex; gap: 6px; }
+.mk-shell-standard .mk-req { color: var(--mk-error); }
+
+/* ── detail ── */
+.mk-shell-standard .mk-detail-block { display: flex; flex-direction: column; gap: 12px; }
+.mk-shell-standard .mk-detail-section h4 { margin: 0 0 10px; font-size: 13.5px; color: var(--mk-primary-dark); }
+.mk-shell-standard .mk-detail-fields { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px 18px; }
+.mk-shell-standard .mk-detail-field { display: flex; flex-direction: column; gap: 2px; }
+.mk-shell-standard .mk-df-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+.mk-shell-standard .mk-df-value { font-size: 13px; }
+
+/* ── tabs (detail page: Details/Attachments/History...) ── */
+.mk-shell-standard .mk-tabs-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--mk-border); flex-wrap: wrap; }
+.mk-shell-standard .mk-tab-btn { border: none; background: none; padding: 9px 14px; font-size: 12.5px; font-weight: 700; color: #666; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.mk-shell-standard .mk-tab-btn.active { color: var(--mk-primary); border-bottom-color: var(--mk-primary); }
+.mk-shell-standard .mk-tabs-body { padding-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── banner (info/success/warning/error) ── */
+.mk-shell-standard .mk-banner { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; border-radius: 5px; font-size: 13px; border-left: 4px solid transparent; }
+.mk-shell-standard .mk-banner-info { background: var(--mk-info-bg); border-left-color: var(--mk-info); color: #1a4c8b; }
+.mk-shell-standard .mk-banner-success { background: var(--mk-success-bg); border-left-color: var(--mk-success); color: #17602a; }
+.mk-shell-standard .mk-banner-warning { background: var(--mk-warning-bg); border-left-color: #E8B622; color: #7a5b00; }
+.mk-shell-standard .mk-banner-error { background: var(--mk-error-bg); border-left-color: var(--mk-error); color: #8a1c28; }
+.mk-shell-standard .mk-banner-icon { display: inline-flex; flex-shrink: 0; margin-top: 1px; }
+
+/* ── actions / buttons ──
+   In this theme the 'actions' component (ActionsBar) is LEFT aligned: the page-level actions sit
+   above the grid, on the same side you start reading. The compact theme puts them on the right
+   instead. A form's OWN button row (mk-form-actions, submit/cancel) stays on the right even here:
+   that is a different pattern — closing a form — not the schema's 'actions' component. */
+.mk-shell-standard .mk-actions-row { display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap; }
+.mk-shell-standard .mk-actions-row.mk-form-actions { justify-content: flex-end; }
+.mk-shell-standard .mk-btn {
+  border-radius: var(--mk-radius-btn); padding: 9px 18px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  border: 1px solid transparent; font-family: inherit; text-transform: uppercase; letter-spacing: .2px;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.mk-shell-standard .mk-btn-primary { background: var(--mk-primary); color: #fff; }
+.mk-shell-standard .mk-btn-primary:hover { background: var(--mk-primary-dark); }
+.mk-shell-standard .mk-btn-secondary { background: #fff; color: #333; border-color: #B5B5B5; }
+.mk-shell-standard .mk-btn-secondary:hover { border-color: var(--mk-primary); color: var(--mk-primary); }
+.mk-shell-standard .mk-btn-danger { background: #fff; color: var(--mk-error); border-color: var(--mk-error); }
+.mk-shell-standard .mk-btn-danger:hover { background: var(--mk-error-bg); }
+/* 'action' (e.g. "+ New request"): neutral grey outline, dark label, icon — deliberately NOT a
+   filled primary button, so page-level actions do not compete with the form's own submit. */
+.mk-shell-standard .mk-btn-action { background: #fff; color: #333; border-color: #B5B5B5; }
+.mk-shell-standard .mk-btn-action:hover { border-color: var(--mk-primary); color: var(--mk-primary); }
+.mk-shell-standard .mk-btn-small { padding: 5px 11px; font-size: 11.5px; }
+.mk-shell-standard .mk-link-btn { border: none; background: none; color: var(--mk-primary); font-weight: 700; font-size: 12.5px; cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 5px; }
+
+/* ── statusbar: full-width centred band (e.g. "Completed") ── */
+.mk-shell-standard .mk-statusbar {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px;
+  border-radius: 5px; font-weight: 700; font-size: 15px; color: #fff;
+}
+.mk-shell-standard .mk-statusbar-success { background: var(--mk-primary); }
+.mk-shell-standard .mk-statusbar-info { background: var(--mk-info); }
+.mk-shell-standard .mk-statusbar-warning { background: #C98A00; }
+.mk-shell-standard .mk-statusbar-error { background: var(--mk-error); }
+
+/* ── wizard / state-progress (available here too, whenever a page needs a stepped flow) ── */
+.mk-shell-standard .mk-wizard-horizontal { display: flex; align-items: flex-start; }
+.mk-shell-standard .mk-wizard-step { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; flex: 1; }
+.mk-shell-standard .mk-wizard-circle { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; background: #E3E7E9; color: #667; }
+.mk-shell-standard .mk-wizard-step-active .mk-wizard-circle, .mk-shell-standard .mk-wizard-step-done .mk-wizard-circle { background: var(--mk-primary); color: #fff; }
+.mk-shell-standard .mk-wizard-label { font-size: 12px; font-weight: 600; text-align: center; }
+.mk-shell-standard .mk-wizard-connector { position: absolute; top: 17px; left: 50%; width: 100%; height: 2px; background: var(--mk-border); z-index: -1; }
+.mk-shell-standard .mk-wizard-vertical { display: flex; flex-direction: column; gap: 18px; }
+.mk-shell-standard .mk-wizard-vertical .mk-wizard-step { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; }
+
+.mk-shell-standard .mk-state-progress { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+.mk-shell-standard .mk-state-progress-title { font-weight: 700; color: var(--mk-primary); margin-bottom: 6px; }
+.mk-shell-standard .mk-progress-step { display: flex; align-items: flex-start; gap: 10px; position: relative; padding-bottom: 22px; }
+.mk-shell-standard .mk-progress-step:last-child { padding-bottom: 0; }
+.mk-shell-standard .mk-progress-circle { width: 24px; height: 24px; border-radius: 50%; background: #E3E7E9; color: #667; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; flex-shrink: 0; }
+.mk-shell-standard .mk-progress-step-active .mk-progress-circle, .mk-shell-standard .mk-progress-step-done .mk-progress-circle { background: var(--mk-primary); color: #fff; }
+.mk-shell-standard .mk-progress-label { font-size: 13px; font-weight: 600; display: block; }
+.mk-shell-standard .mk-progress-timestamp { font-size: 11px; color: #888; display: block; }
+.mk-shell-standard .mk-progress-connector { position: absolute; left: 11.5px; top: 24px; width: 1px; height: calc(100% - 24px); background: var(--mk-border); }
+
+/* ── segmented / tiles ── */
+.mk-shell-standard .mk-segmented { display: inline-flex; border: 1px solid var(--mk-border); border-radius: 999px; padding: 3px; gap: 2px; }
+.mk-shell-standard .mk-segmented-item { border: none; background: none; padding: 6px 16px; border-radius: 999px; font-size: 12.5px; font-weight: 700; cursor: pointer; color: #555; }
+.mk-shell-standard .mk-segmented-item.active { background: var(--mk-primary); color: #fff; }
+
+.mk-shell-standard .mk-tiles { display: flex; gap: 16px; flex-wrap: wrap; }
+.mk-shell-standard .mk-tile { background: #fff; border: 1px solid var(--mk-border); border-radius: var(--mk-radius-card); padding: 18px; min-width: 160px; flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.mk-shell-standard .mk-tile-icon { color: var(--mk-primary); }
+.mk-shell-standard .mk-tile-label { font-weight: 700; font-size: 14px; }
+.mk-shell-standard .mk-tile-link { border: none; background: none; color: var(--mk-primary); font-weight: 700; font-size: 12.5px; cursor: pointer; padding: 0; }
+
+/* ── modal (dialog): dark overlay + centred white card, 7px radius, title in the primary colour.
+   The overlay is absolute against .mk-shell-standard (position:relative above), so it covers the
+   mockup panel and not the whole hosting page. The export (mockup_export.py) uses the same class
+   names, where plain JS shows/hides it through the [hidden] attribute. */
+.mk-shell-standard .mk-modal-overlay {
+  position: absolute; inset: 0; z-index: 40; background: rgba(16, 32, 38, .55);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.mk-shell-standard .mk-modal-overlay[hidden] { display: none; }
+.mk-shell-standard .mk-modal-card {
+  /* Wider than the usual 720px so the 'sidebar-nav' pattern (menu + content) fits: a plain form
+     dialog is still perfectly readable in here, it just gets more breathing room on the sides. */
+  background: #fff; border-radius: var(--mk-radius-card); width: min(980px, 96%); max-height: 100%;
+  overflow: auto; display: flex; flex-direction: column; box-shadow: 0 14px 34px rgba(0,0,0,.28);
+}
+.mk-shell-standard .mk-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--mk-border); }
+.mk-shell-standard .mk-modal-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--mk-primary); }
+.mk-shell-standard .mk-modal-close { border: none; background: none; color: #666; cursor: pointer; padding: 4px; border-radius: 4px; display: inline-flex; }
+.mk-shell-standard .mk-modal-close:hover { background: var(--mk-neutral-bg); color: var(--mk-text); }
+.mk-shell-standard .mk-modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+/* Inside a dialog, 'detail' fields go to 4 columns instead of the 3 used elsewhere: a dialog packs
+   a whole record's sections into one card, so the fields have to be denser to stay on one screen. */
+.mk-shell-standard .mk-modal-body .mk-detail-fields { grid-template-columns: repeat(4, minmax(0,1fr)); }
+
+/* ── collapsible section (the dialog pattern: several named blocks stacked in one card) ──
+   Same chevron as the filters (.mk-chevron), rotated -90deg when closed. The body is hidden from
+   JS — React unmounts it conditionally, the export sets display:none. Same visual result. */
+.mk-shell-standard .mk-section-title-toggle { cursor: pointer; user-select: none; }
+.mk-shell-standard .mk-section-title-toggle .mk-chevron { display: inline-flex; transform: rotate(-90deg); transition: transform .15s; }
+.mk-shell-standard .mk-section-title-toggle .mk-chevron.mk-chevron-open { transform: rotate(0deg); }
+
+/* ── split action bar (dialog pattern: the "leave" action on the left, cancel/hold/save on the
+   right) ── Applied automatically by MockupView.tsx/mockup_export.py when 'actions' sits inside a
+   dialog in this theme. Never a schema prop — see schemas/mockup.schema.json, c_actions. */
+.mk-shell-standard .mk-actions-row.mk-actions-split { justify-content: space-between; }
+.mk-shell-standard .mk-actions-split-start, .mk-shell-standard .mk-actions-split-end { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── sidebar-nav (dialog pattern): vertical menu plus a fixed info panel and alert list on the
+   left, body of the selected section on the right. See schemas/mockup.schema.json c_sidebar_nav,
+   web/src/mockup-lib/components/SidebarNav.tsx, server/mockup_export.py _render_sidebar_nav. ── */
+.mk-shell-standard .mk-sidenav-block { display: flex; gap: 22px; align-items: flex-start; }
+.mk-shell-standard .mk-sidenav-menu {
+  width: 250px; flex-shrink: 0; background: var(--mk-primary-light); border-radius: var(--mk-radius-card);
+  padding: 16px; display: flex; flex-direction: column; gap: 16px;
+}
+.mk-shell-standard .mk-sidenav-title { font-weight: 700; color: var(--mk-primary-dark); font-size: 14px; }
+.mk-shell-standard .mk-sidenav-items { display: flex; flex-direction: column; gap: 9px; }
+.mk-shell-standard .mk-sidenav-item {
+  border: none; background: none; text-align: left; padding: 0; font-size: 13px; font-weight: 600;
+  color: var(--mk-primary); cursor: pointer; font-family: inherit;
+}
+.mk-shell-standard .mk-sidenav-item.active { color: var(--mk-text); font-weight: 700; }
+.mk-shell-standard .mk-sidenav-item:hover:not(.active) { text-decoration: underline; }
+.mk-shell-standard .mk-sidenav-info {
+  background: #fff; border: 1px solid var(--mk-info); border-left: 4px solid var(--mk-info); border-radius: 5px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;
+}
+.mk-shell-standard .mk-sidenav-info-title { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--mk-info); }
+.mk-shell-standard .mk-sidenav-info-field { display: flex; gap: 5px; flex-wrap: wrap; }
+.mk-shell-standard .mk-sidenav-info-label { font-weight: 600; color: #555; }
+.mk-shell-standard .mk-sidenav-info-label::after { content: ":"; }
+.mk-shell-standard .mk-sidenav-alerts-title { font-weight: 700; margin-bottom: 5px; font-size: 12.5px; }
+.mk-shell-standard .mk-sidenav-alert-item {
+  background: var(--mk-warning-bg); color: #7a5b00; font-size: 11.5px; font-weight: 600;
+  padding: 5px 9px; border-radius: 4px; margin-bottom: 5px;
+}
+.mk-shell-standard .mk-sidenav-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }

@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ask-dyla.local/schemas/deck.schema.json",
+  "title": "Slide deck",
+  "description": "A project slide deck (kickoff, recurring status report, estimate presentation, demo), exportable both to pptx and to HTML from the same JSON. It is the source of truth: the exports (pptx, html) are generated on demand by the backend from this document and must not be written by hand. Every slide declares a 'layout' that determines how it is rendered in the two export formats and which of the fields 'bullets'/'text'/'table'/'kpi'/'milestones'/'image' are relevant for it — the fields that do not apply to the chosen layout should simply be omitted. The deck is meant to be regenerated periodically (typically at every status report) without losing the manual work done on it: see the 'auto' field on each slide.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "slides"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "description": "Metadata of the deck: project, client and type determine the tone and the recommended slide structure.",
+      "additionalProperties": false,
+      "required": [
+        "project",
+        "title",
+        "client",
+        "date",
+        "type"
+      ],
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project folder slug (projects/{project})."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the deck, shown on the cover slide and used in the name of the exported file (e.g. 'Status report - September 2025')."
+        },
+        "client": {
+          "type": "string",
+          "description": "Client of the project, shown on the cover and used for the visual theming of the export."
+        },
+        "theme": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "compact",
+            "plain"
+          ],
+          "description": "Visual theme of the deck, same set as the mockup themes: it decides the accent colour of the exported PowerPoint and HTML. Defaults to 'plain' when absent."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date the deck was generated, YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of deck; it determines the typical slide structure expected: 'kickoff' = project start presentation (goals, team, plan); 'status' = recurring progress report (progress, risks, next steps), typically regenerated every couple of weeks; 'estimate' = presentation of the estimate to the client (epics, days, assumptions); 'demo' = presentation supporting a functional demo (the flow being shown, screenshots or mockups).",
+          "enum": [
+            "kickoff",
+            "status",
+            "estimate",
+            "demo"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Editorial state of the document, for the 'chat stays conversational' UX: 'draft' while it is still being refined with the user in chat (citing slides by id, e.g. S3), 'confirmed' once the user has validated the deck. Optional field: a document without 'status' is treated as a draft.",
+          "enum": [
+            "draft",
+            "confirmed"
+          ]
+        },
+        "period": {
+          "type": "string",
+          "description": "Time span covered by the deck, mostly relevant for type='status' (e.g. '8-19 September 2025'). Omitted for decks that do not cover an interval (e.g. a kickoff)."
+        },
+        "author": {
+          "type": "string",
+          "description": "Name of whoever prepared or is presenting the deck (shown on the cover)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form notes on the deck as a whole (e.g. the context of the meeting, the audience, the previous version it replaces)."
+        }
+      }
+    },
+    "slides": {
+      "type": "array",
+      "description": "Slides of the deck, in presentation order. Typically the first slide uses the 'cover' layout.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "layout",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the slide, unique within the document, e.g. 'S4'. Used to refer to the slide in chat and to preserve hand-written slides when the deck is regenerated.",
+            "pattern": "^S\\d+$"
+          },
+          "layout": {
+            "type": "string",
+            "description": "Layout of the slide; it determines how it is rendered in pptx and html and which of the other fields should be filled in: 'cover' = project/client/date title, no further content; 'list' = title plus a bulleted list (uses 'bullets'); 'table' = title plus a table (uses 'table'); 'timeline' = title plus a sequence of milestones with their status (uses 'milestones'); 'kpi' = title plus a row of key indicators (uses 'kpi'); 'text' = title plus free text in short markdown (uses 'text'); 'image' = title plus a full-slide image (uses 'image'); 'section' = a divider slide introducing a new part of the deck, title and subtitle only.",
+            "enum": [
+              "cover",
+              "list",
+              "table",
+              "timeline",
+              "kpi",
+              "text",
+              "image",
+              "section"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the slide, displayed prominently at the top (or in the centre for the 'cover' and 'section' layouts)."
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Optional subtitle shown below the title (e.g. the project name on a 'section' slide, or a clarification of context on a 'list' slide)."
+          },
+          "bullets": {
+            "type": "array",
+            "description": "Bullet points of the slide, in presentation order. Relevant for layout='list'; each entry is a short, self-contained line, not a paragraph.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "text": {
+            "type": "string",
+            "description": "Free text in short markdown (paragraphs, optional bold/italic, no nested headings) for layout='text'. Keep it terse: it is a slide, not a document."
+          },
+          "table": {
+            "type": "object",
+            "description": "Tabular content for layout='table' (e.g. a summary of days per epic, a list of risks with owner and status).",
+            "additionalProperties": false,
+            "required": [
+              "headers",
+              "rows"
+            ],
+            "properties": {
+              "headers": {
+                "type": "array",
+                "description": "Column headers, in order.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Rows of the table; each row is an array of strings in the same order as 'headers' and of the same length.",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "kpi": {
+            "type": "array",
+            "description": "Key indicators shown as a row of cards for layout='kpi' (e.g. total days, percentage of progress, days left to delivery, number of open defects).",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "value"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "Label of the indicator (e.g. 'Total days', 'Progress')."
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Value of the indicator, shown prominently (e.g. '82.5', '64%', '12 days')."
+                },
+                "note": {
+                  "type": "string",
+                  "description": "Optional short note next to the value (e.g. 'vs 78 days planned', 'target 30/09')."
+                }
+              }
+            }
+          },
+          "milestones": {
+            "type": "array",
+            "description": "Project milestones shown in sequence for layout='timeline', typically derived from timeline.json when the slide is 'auto'.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the milestone (e.g. 'Test environment available')."
+                },
+                "date": {
+                  "type": "string",
+                  "description": "Date of the milestone, YYYY-MM-DD format.",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Progress state of the milestone: 'planned' not started yet, 'in_progress' currently being worked on, 'completed' done, 'at_risk' at risk of missing the planned date (to be highlighted visually in the export).",
+                  "enum": [
+                    "planned",
+                    "in_progress",
+                    "completed",
+                    "at_risk"
+                  ]
+                }
+              }
+            }
+          },
+          "image": {
+            "type": "string",
+            "description": "Path, relative to the project folder (projects/{project}/...), of an image to include full-slide, for layout='image' (e.g. a screenshot of a mockup, an external diagram)."
+          },
+          "speaker_notes": {
+            "type": "string",
+            "description": "Presenter notes, not visible during the presentation: exported as speaker notes in the pptx file, useful to remember the points to make out loud."
+          },
+          "auto": {
+            "type": "boolean",
+            "description": "If true, the slide is regenerated automatically from the project data (estimate.json, timeline.json) every time the deck is updated, and any manual edit made to it would be lost at the next regeneration. If false or absent, the slide is hand-written and must ALWAYS be preserved (never overwritten) when the deck is regenerated. This is the mechanism that lets a status deck be regenerated every couple of weeks with fresh numbers without losing the risks and comments written by hand in the previous slides."
+          }
+        }
+      }
+    }
+  }
+}

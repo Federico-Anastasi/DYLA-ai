@@ -1,0 +1,770 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ask-dyla.local/schemas/mockup.schema.json",
+  "title": "Component-based mockup",
+  "description": "A proof-of-concept mockup made of pages built from a STANDARD component library, themed by visual style. It is not free-form HTML: the model (through the /mockup skill) composes this JSON by picking among the component types defined here, never arbitrary markup. Both the frontend (web/src/mockup-lib) and the backend (server/mockup_export.py) render this document with the SAME component library (mk-* classes) and the same theme CSS (web/src/mockup-lib/themes/*.css) — the preview in the viewer and the HTML export are identical. It is the source of truth: mockup.html is an on-demand export. The page title and the 'Back' link are NOT components: they are chrome derived automatically from pages[].name and from the 'breadcrumb' component (see c_breadcrumb).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "pages"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "description": "Metadata of the project and the visual theme, which drives how the export looks.",
+      "additionalProperties": false,
+      "required": ["project", "title", "theme", "date"],
+      "properties": {
+        "project": { "type": "string", "description": "Project folder slug (projects/{project})." },
+        "title": { "type": "string", "description": "Title of the application (shown in the topbar of the standard theme; an internal fallback in the compact theme)." },
+        "theme": {
+          "type": "string",
+          "description": "Visual theme: it determines the colours, fonts and navigation layout applied by the mockup-lib library. 'standard' = green palette, dark topbar plus horizontal pill tabs, system font — the default look for a business application. 'compact' = teal palette, left sidebar, denser typography and squared controls — for information-dense back-office applications. 'plain' = a neutral indigo theme with no strong identity, for projects with no dedicated look and feel.",
+          "enum": ["standard", "compact", "plain"]
+        },
+        "date": {
+          "type": "string",
+          "description": "Generation date, YYYY-MM-DD format.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Editorial state of the document, for the 'chat stays conversational' UX: 'draft' while it is still being refined with the user in chat (citing elements by id), 'confirmed' once the user has validated the content. Optional field, for compatibility with pre-existing documents that do not carry it yet — a document without 'status' is treated as a draft.",
+          "enum": ["draft", "confirmed"]
+        }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "description": "Pages of the mockup. The first page in the array (with kind 'page', or with kind absent) is the one shown when the HTML file is opened. Navigation (nav/actions/grid actions/breadcrumb/segmented/tiles) points at pages[].id: if the target has kind 'modal', it opens as an overlaid dialog instead of navigating. The page title is derived automatically from pages[].name (chrome, not a component): no dedicated title component is needed.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "components"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Page identifier, unique within the document. Used as a navigation target (or as the dialog to open, if kind='modal'). Slug: lowercase letters, digits and hyphens.",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "name": { "type": "string", "description": "Readable page name: rendered automatically as the page title (centred in the standard theme, left-aligned in the compact theme) for kind='page', or as the dialog title for kind='modal'." },
+          "kind": {
+            "type": "string",
+            "enum": ["page", "modal"],
+            "default": "page",
+            "description": "'page' (the default, also when the field is absent, for backward compatibility): a normal page, it appears in 'nav' and is navigable. 'modal': a dialog (e.g. a 'New request' form, a confirmation, a rejection reason) — it does NOT appear in 'nav' and is never the active page of the navigation: it opens as a centred overlay when an 'actions.buttons[].target', a 'grid.actions[].target' or a 'form.submit_target' references it. A button inside the dialog whose target is a 'page' closes the dialog and navigates there."
+          },
+          "components": {
+            "type": "array",
+            "description": "Components of the page, rendered top to bottom under the automatic title (or, for kind='modal', inside the body of the dialog under its title). Typically the first page starts with 'topbar' and 'nav' (global chrome, taken once from the first occurrence in the document). If the FIRST component of a page is of type 'actions', the compact theme shows it next to the page title instead of in the body (the record-view header pattern, with buttons to the right of the title). 'modal' pages must not contain 'topbar' or 'nav'.",
+            "items": { "$ref": "#/$defs/component" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "component": {
+      "description": "A standard library component. 'type' determines the shape of 'props' (see the individual $defs). No other type is allowed: free-form HTML/CSS/JS cannot be inserted.",
+      "oneOf": [
+        { "$ref": "#/$defs/c_topbar" },
+        { "$ref": "#/$defs/c_nav" },
+        { "$ref": "#/$defs/c_breadcrumb" },
+        { "$ref": "#/$defs/c_kpi_row" },
+        { "$ref": "#/$defs/c_grid" },
+        { "$ref": "#/$defs/c_form" },
+        { "$ref": "#/$defs/c_detail" },
+        { "$ref": "#/$defs/c_actions" },
+        { "$ref": "#/$defs/c_tabs" },
+        { "$ref": "#/$defs/c_banner" },
+        { "$ref": "#/$defs/c_section" },
+        { "$ref": "#/$defs/c_filters" },
+        { "$ref": "#/$defs/c_legend" },
+        { "$ref": "#/$defs/c_statusbar" },
+        { "$ref": "#/$defs/c_wizard_steps" },
+        { "$ref": "#/$defs/c_state_progress" },
+        { "$ref": "#/$defs/c_segmented" },
+        { "$ref": "#/$defs/c_tiles" },
+        { "$ref": "#/$defs/c_sidebar_nav" }
+      ]
+    },
+
+    "nestedComponent": {
+      "description": "The subset of components allowed inside a tab or a section (no page chrome: no topbar/nav, no nested tabs, to avoid an ambiguous structure).",
+      "oneOf": [
+        { "$ref": "#/$defs/c_breadcrumb" },
+        { "$ref": "#/$defs/c_kpi_row" },
+        { "$ref": "#/$defs/c_grid" },
+        { "$ref": "#/$defs/c_form" },
+        { "$ref": "#/$defs/c_detail" },
+        { "$ref": "#/$defs/c_actions" },
+        { "$ref": "#/$defs/c_banner" },
+        { "$ref": "#/$defs/c_section" },
+        { "$ref": "#/$defs/c_filters" },
+        { "$ref": "#/$defs/c_legend" },
+        { "$ref": "#/$defs/c_wizard_steps" },
+        { "$ref": "#/$defs/c_state_progress" },
+        { "$ref": "#/$defs/c_segmented" },
+        { "$ref": "#/$defs/c_tiles" }
+      ]
+    },
+
+    "c_topbar": {
+      "description": "The global application bar (chrome, taken once from the first occurrence in the document). In the standard theme it is the dark bar at the top with the application title and the user. In the compact theme it feeds the user block at the bottom of the sidebar (the logo and the app launcher are fixed chrome of the theme, they do not come from props).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "topbar" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title"],
+          "properties": {
+            "title": { "type": "string", "description": "Application title shown in the topbar (standard and plain themes only)." },
+            "user": { "type": "string", "description": "Name of the signed-in user, shown top right (standard theme) or at the bottom of the sidebar (compact theme). Optional, defaults to a demo user." }
+          }
+        }
+      }
+    },
+
+    "c_nav": {
+      "description": "The navigation menu across the pages of the mockup (global chrome, taken once). Rendered as horizontal pill tabs (standard and plain themes) or as a vertical sidebar (compact theme), depending on meta.theme.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "nav" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "description": "Menu entries, in order.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "page"],
+                "properties": {
+                  "label": { "type": "string", "description": "Label of the menu entry." },
+                  "page": { "type": "string", "description": "Id of the target page (pages[].id)." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_breadcrumb": {
+      "description": "The navigation trail. The standard theme, which shows no trail, renders it automatically as a single 'Back' link (arrow plus label) pointing at the second-to-last item. In the compact and plain themes it is the full 'A / B / C current' trail. The last entry is the current page and is not clickable.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "breadcrumb" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "page": { "type": "string", "description": "Id of the target page. Omitted for the current entry (not clickable)." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_kpi_row": {
+      "description": "A row of KPI cards. In the compact theme each card has a coloured title, a divider and a large accent-coloured number (e.g. '2 / 5'). In the standard and plain themes it is a neutral card with a label and an optional trend.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "kpi-row" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cards"],
+          "properties": {
+            "cards": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "value"],
+                "properties": {
+                  "label": { "type": "string", "description": "KPI label (e.g. 'Checklists completed')." },
+                  "value": { "type": "string", "description": "The value shown prominently (e.g. '12', '2 / 5', '3,240.00 EUR')." },
+                  "trend": { "type": "string", "description": "Optional trend indicator shown next to the value.", "enum": ["up", "down", "flat"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_grid": {
+      "description": "A data table or list. Typed columns, sample rows, optional search, per-row actions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "grid" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["columns", "rows"],
+          "properties": {
+            "title": { "type": "string", "description": "Optional title above the table." },
+            "columns": {
+              "type": "array",
+              "description": "Columns of the table, in order.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key", "label"],
+                "properties": {
+                  "key": { "type": "string", "description": "Field key; it must match the keys used in rows[]." },
+                  "label": { "type": "string", "description": "Column header." },
+                  "kind": {
+                    "type": "string",
+                    "description": "How the cell is rendered (default 'text'). 'id-link' = clickable text in the primary colour that navigates to the first row action (e.g. a record id). 'chip' = a rounded pill (e.g. a category or product). 'progress' = a progress bar (the value is expected in the 0-100 range). 'sla' = a green check or red cross icon plus text (values like 'OK'/'KO'/'Yes'/'No'/a boolean). 'status' = a coloured icon plus text, inferred heuristically from keywords in the value (completed/approved/ok = green, waiting/on hold/to review = amber, automated/sent = blue, rejected/error = red).",
+                    "enum": ["text", "id-link", "chip", "progress", "sla", "status"],
+                    "default": "text"
+                  }
+                }
+              }
+            },
+            "rows": {
+              "type": "array",
+              "description": "Sample rows (fictitious but plausible data, consistent with the data model). Each row is a map of key -> displayed value; the keys must match columns[].key.",
+              "items": {
+                "type": "object",
+                "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+              }
+            },
+            "searchable": {
+              "type": "boolean",
+              "description": "If true (the default), the export adds a search box that filters the rows client-side across all columns.",
+              "default": true
+            },
+            "actions": {
+              "type": "array",
+              "description": "The actions available on each row. The POSITION of the actions column is decided by the theme, not by this field: the standard and plain themes render it as a column of buttons (first column in standard, last in plain); the compact theme NEVER shows an actions column (no per-row icons), so here it only serves to provide the navigation target for a column with kind='id-link' (required in the compact theme if the row is meant to open a detail). Binding rule: every entry in this array must point at a page with kind='modal' (never at a page with kind='page') — a row action always opens a dialog, never a full-page navigation. In a mockup the action always navigates to the same target page for every row.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "target"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "target": { "type": "string", "description": "Id of a page with kind='modal' (pages[].id) that opens as an overlaid dialog. Never a page with kind='page'." },
+                  "icon": { "type": "string", "description": "Optional icon name (shared set, e.g. 'pencil', 'eye', 'trash-2'). Ignored in the compact theme, where the action is never rendered as a column." },
+                  "variant": { "type": "string", "enum": ["button", "link"], "description": "Style of the action control (default 'button'). Only relevant for the standard and plain themes." }
+                }
+              }
+            },
+            "paginationLabel": { "type": "string", "description": "Pagination label shown under the table (e.g. '1 - 10 of 116'), with decorative navigation arrows." }
+          }
+        }
+      }
+    },
+
+    "c_form": {
+      "description": "A form for entering or editing data (a single card: title, a grid of editable fields, and a submit/cancel button bar).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "form" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fields"],
+          "properties": {
+            "title": { "type": "string", "description": "Optional title above the form (omit it when the form is the only section of a wizard step, per the compact theme guidelines)." },
+            "fields": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "type"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "type": {
+                    "type": "string",
+                    "description": "Input type.",
+                    "enum": ["text", "number", "date", "select", "textarea", "checkbox"]
+                  },
+                  "required": { "type": "boolean", "description": "If true, the field shows the required-field asterisk." },
+                  "options": {
+                    "type": "array",
+                    "description": "Selectable options, required and used only for type='select'.",
+                    "items": { "type": "string" }
+                  },
+                  "placeholder": { "type": "string", "description": "Optional placeholder text." }
+                }
+              }
+            },
+            "submit_label": { "type": "string", "description": "Label of the submit button (default 'Save')." },
+            "cancel_label": { "type": "string", "description": "Label of the cancel button, if present." },
+            "submit_target": { "type": "string", "description": "Id of the page to go to after submitting (it simulates the save and the resulting navigation or dialog close). Optional. If the form lives in a page with kind='modal', the typical target is a normal page: submitting closes the dialog and navigates there." }
+          }
+        }
+      }
+    },
+
+    "c_detail": {
+      "description": "A read-only detail view: sections of label/value pairs.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "detail" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sections"],
+          "properties": {
+            "title": { "type": "string", "description": "Optional title above the detail (e.g. 'Request #1234')." },
+            "sections": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["fields"],
+                "properties": {
+                  "title": { "type": "string", "description": "Section title (e.g. 'Requester details'). Optional: omit it when the 'detail' lives inside a collapsible 'section' that already shows the title (e.g. the sections of a dialog using 'sidebar-nav'), to avoid a duplicate heading." },
+                  "fields": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["label", "value"],
+                      "properties": {
+                        "label": { "type": "string" },
+                        "value": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_actions": {
+      "description": "A row of action buttons (e.g. the footer of a form with Exit/Cancel/Hold/Save, or contextual actions in a detail view). If it is the FIRST component of the page, the compact theme shows it next to the title (record-view header) instead of in the page body. Automatic rule (no prop to set): in the standard theme, when this component is used inside a page with kind='modal', the first button is pushed to the left (typically 'Exit', to close without saving) and the remaining ones are aligned to the right — mirroring the dialog action bar. So order the buttons putting the exit or cancel one first.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "actions" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["buttons"],
+          "properties": {
+            "buttons": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "target"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "style": {
+                    "type": "string",
+                    "description": "Visual style of the button (default 'secondary'). 'primary' = filled (Confirm/Save). 'secondary' = grey outline (Back). 'danger' = red outline (Cancel/Reject). 'action' = outline in the primary colour with an icon, a verb (used above grids). 'link' = text only, for tertiary actions (e.g. 'Generate CSV').",
+                    "enum": ["primary", "secondary", "danger", "action", "link"]
+                  },
+                  "icon": { "type": "string", "description": "Optional icon name, typically for style='action' or 'link'." },
+                  "target": { "type": "string", "description": "Id of the page to go to when the button is pressed (pages[].id). If the target page has kind='modal', it opens as an overlaid dialog instead of navigating." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_tabs": {
+      "description": "A set of tabs with nested content (e.g. a record detail with 'Details / Documents / History' tabs). In the compact theme the active tab is a filled pill in the accent colour and the others are links; in the standard and plain themes they are outlined pills.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "tabs" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tabs"],
+          "properties": {
+            "tabs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "components"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "components": { "type": "array", "items": { "$ref": "#/$defs/nestedComponent" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_banner": {
+      "description": "A prominent system message, in the four standard tones (information, success, warning, error). Coloured left border, tinted background and an icon matching the tone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "banner" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["style", "text"],
+          "properties": {
+            "style": { "type": "string", "enum": ["info", "success", "warning", "error"], "description": "Tone of the banner." },
+            "title": { "type": "string", "description": "Optional short title (e.g. 'Warning')." },
+            "text": { "type": "string", "description": "Text of the message." }
+          }
+        }
+      }
+    },
+
+    "c_section": {
+      "description": "A generic section: a white card with a title, an optional icon, and content. Recommended content order: banner, buttons (actions), filters, grid. Use it to group several components under a common title when 'form' and 'detail' are not enough.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "section" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["components"],
+          "properties": {
+            "title": { "type": "string", "description": "Section title (optional: with no title the card is a plain container)." },
+            "icon": { "type": "string", "description": "Optional icon name next to the title (only when it actually adds meaning)." },
+            "collapsible": { "type": "boolean", "description": "If true, the title shows a chevron and the section can be expanded or collapsed (it starts expanded). This is the pattern of a dialog using 'sidebar-nav', where each section is collapsible. Requires 'title'. Default false (a static card, the historical behaviour)." },
+            "components": { "type": "array", "items": { "$ref": "#/$defs/nestedComponent" } }
+          }
+        }
+      }
+    },
+
+    "c_filters": {
+      "description": "A filter bar above a grid. In the standard theme it is a collapsible 'Filters' block with a magnifier. In the compact theme it is a row of dropdown chips with a small-caps label and an italic value, plus an optional search box.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "filters" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fields"],
+          "properties": {
+            "search_label": { "type": "string", "description": "Placeholder of the free-text search box with its Search button, shown in the compact theme before the chip filters (optional)." },
+            "collapsible": { "type": "boolean", "description": "Standard theme only: if true (the default) the filters block is collapsible and starts closed. Ignored in the compact theme (the chip filters are always visible)." },
+            "fields": {
+              "type": "array",
+              "description": "Filters, in order.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "value"],
+                "properties": {
+                  "label": { "type": "string", "description": "Filter label (rendered in small caps in the compact theme)." },
+                  "value": { "type": "string", "description": "The current value shown (italic in the compact theme), e.g. 'Any'." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_legend": {
+      "description": "A legend of coloured icons (the standard theme pattern: prioritisation of records with grey/red/green/blue stars, shown above the grid).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "legend" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items"],
+          "properties": {
+            "title": { "type": "string", "description": "Legend title (e.g. 'Legend', 'Prioritisation:')." },
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "color"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "color": { "type": "string", "enum": ["grey", "red", "green", "blue"], "description": "Colour of the star (e.g. grey = not prioritised, red = urgent, green = priority, blue = past due)." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_statusbar": {
+      "description": "A full-width status bar at the top of the page content (e.g. 'Completed' on a solid green background with a check icon). It is not global chrome: it belongs to the page that uses it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "statusbar" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label"],
+          "properties": {
+            "label": { "type": "string", "description": "Status text (e.g. 'Completed')." },
+            "tone": { "type": "string", "enum": ["info", "success", "warning", "error"], "description": "Colour tone (default 'success')." },
+            "icon": { "type": "string", "description": "Optional icon name (by default inferred from the tone: check/info/triangle-alert/alert-circle)." }
+          }
+        }
+      }
+    },
+
+    "c_wizard_steps": {
+      "description": "A wizard that splits an action or a form into several steps. Horizontal when there are 2-7 steps, vertical (in a left rail) from 8 steps up. Pass 'orientation' only to force a value different from the one computed from steps.length.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "wizard-steps" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["steps", "current"],
+          "properties": {
+            "steps": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Labels of the steps, in order." },
+            "current": { "type": "integer", "minimum": 1, "description": "The current step (1-based). Previous steps are marked as completed (a check), later ones as upcoming." },
+            "orientation": { "type": "string", "enum": ["horizontal", "vertical"], "description": "Forces the orientation (default: horizontal if steps.length <= 7, vertical otherwise)." }
+          }
+        }
+      }
+    },
+
+    "c_state_progress": {
+      "description": "The status progression of an entity, shown vertically in the left rail of a record view. Completed states carry a check and an optional date/time, the current state a number on a solid background, upcoming states a number on a light background.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "state-progress" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["states", "current"],
+          "properties": {
+            "title": { "type": "string", "description": "Title of the block (default 'Status')." },
+            "states": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "date": { "type": "string", "description": "Optional date/time shown under the label for completed states (e.g. '27/05/2026 - 14:56')." }
+                }
+              }
+            },
+            "current": { "type": "integer", "minimum": 1, "description": "The current state (1-based, numbered as in states)." }
+          }
+        }
+      }
+    },
+
+    "c_segmented": {
+      "description": "A pill selector (segmented control), e.g. 'By activity' / 'By team', or 'To do' / 'History'. The active option is a filled pill, the others are plain links.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "segmented" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["options"],
+          "properties": {
+            "options": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "target": { "type": "string", "description": "Optional id of the target page, if the option navigates elsewhere." }
+                }
+              }
+            },
+            "active": { "type": "integer", "minimum": 0, "description": "Index (0-based) of the active option (default 0)." }
+          }
+        }
+      }
+    },
+
+    "c_tiles": {
+      "description": "A row of navigation tiles (a top-level landing page): icon, title, and a 'See all' link.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "tiles" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items"],
+          "properties": {
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "target"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "icon": { "type": "string", "description": "Icon name (default 'flag')." },
+                  "link_label": { "type": "string", "description": "Label of the link at the bottom (default 'See all')." },
+                  "target": { "type": "string", "description": "Id of the target page." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "c_sidebar_nav": {
+      "description": "A vertical menu that navigates BETWEEN SECTIONS inside a dialog (the record-form pattern: the record title, a menu such as Summary/Documents/History/Approvals, an info panel, a list of alerts, and the body of the active section on the right). It is REAL navigation: clicking an entry replaces the body shown on the right (like 'tabs', but vertical and with additional fixed panels). Intended use: ONLY inside a page with kind='modal' in the standard theme, as the main body of the detail or edit dialog of a record opened from a row action (grid.actions/actions). Do not use it in the compact theme (its forms are simpler, with no side menu — see c_wizard_steps for multi-step flows).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "props"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "sidebar-nav" },
+        "props": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title", "sections"],
+          "properties": {
+            "title": { "type": "string", "description": "Heading of the menu (e.g. 'REQUEST: 1801')." },
+            "sections": {
+              "type": "array",
+              "description": "Menu entries, in order. The first one is active by default. The body of each entirely replaces the one shown on the right when the entry is selected.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "components"],
+                "properties": {
+                  "label": { "type": "string", "description": "Label of the menu entry (e.g. 'Summary', 'Documents', 'Status history')." },
+                  "components": { "type": "array", "items": { "$ref": "#/$defs/nestedComponent" } }
+                }
+              }
+            },
+            "info": {
+              "type": "object",
+              "description": "A fixed information panel under the menu (e.g. reference codes), visible regardless of the selected section. Optional.",
+              "additionalProperties": false,
+              "required": ["fields"],
+              "properties": {
+                "title": { "type": "string", "description": "Title of the panel (default 'Information')." },
+                "fields": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["label", "value"],
+                    "properties": {
+                      "label": { "type": "string" },
+                      "value": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            "alerts": {
+              "type": "object",
+              "description": "A list of highlighted alerts under the info panel (yellow badges, e.g. 'Integration error'). Optional.",
+              "additionalProperties": false,
+              "required": ["items"],
+              "properties": {
+                "title": { "type": "string", "description": "Title of the list (default 'Alerts')." },
+                "items": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

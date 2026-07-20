@@ -1,0 +1,49 @@
+/* Dyla's look, in one place.
+ *
+ * Every colour, radius and accent in the app comes from these variables, so this is
+ * the only file you need to touch to make Dyla look like yours. Nothing here is
+ * referenced by name anywhere else — the rest of the stylesheet only ever says
+ * var(--accent), never a literal colour.
+ *
+ * To restyle: change the values below and rebuild (`npm run build`). To keep more
+ * than one look around, copy this file, edit the copy, and switch which one
+ * `main.tsx` imports.
+ *
+ * The palette is dark on purpose: this is a tool you keep open all day beside an
+ * editor, and a bright panel next to a dark one is tiring. If you want a light
+ * theme, the variables are the same — you invert bg/text and lighten the panels.
+ */
+
+:root {
+  /* Surfaces, from the page background up to the raised panels. They step up in
+     small increments: too much contrast between them and the interface looks like
+     a stack of boxes instead of one screen. The greys lean blue so the accent sits
+     in the same family as its background instead of on top of it. */
+  --bg: #0b111c;
+  --panel: #121a28;
+  --panel-2: #1a2435;
+  --panel-3: #243044;
+  --border: #2e3d54;
+
+  /* Text. --muted is for anything the eye should skip on the way to the content:
+     metadata, timestamps, counts. It stays readable — muted, not disabled. */
+  --text: #e9eff8;
+  --muted: #94a5bd;
+
+  /* The accent carries every interactive thing: buttons, focus rings, the active
+     tab, the cursor in the chat. --accent-soft is its readable-on-dark sibling,
+     used for text and icons where the solid colour would be too heavy — on a dark
+     background a saturated blue goes muddy in small type, so the soft one is
+     lighter rather than just more transparent. */
+  --accent: #2f80ff;
+  --accent-soft: #7db4ff;
+
+  /* Semantic pair, used sparingly: green means done or confirmed, red means failed
+     or overdue. Keeping them out of the accent's job is what lets them mean
+     something when they do show up. Both are bright enough to read at 11px, which
+     is the size they usually appear at. */
+  --ok: #2fd08a;
+  --err: #ff6b6b;
+
+  --radius: 10px;
+}
