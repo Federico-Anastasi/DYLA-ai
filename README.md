@@ -7,7 +7,7 @@
 **An AI workspace that turns project work into deliverables you can actually send —
 running on a model on your own machine.**
 
-Briefs · Estimates · Data models · Mockups · Test plans · Decks
+Briefs · Estimates · Data models · Diagrams · Mockups · Designs · Test plans · Decks
 → Word, Excel, PowerPoint, draw.io, HTML
 
 </div>
@@ -122,9 +122,11 @@ default so the agent answers in whatever you write to it.
 | `/meeting-notes` | A meeting write-up: decisions, open points, actions with an owner |
 | `/meeting` | Folds a transcript into the brief, collects open questions and people |
 | `/data-model` | Entities, fields and relationships, with an editable ER diagram |
+| `/diagram` | Architecture views, workflows with actor swimlanes, dataflows, sequences — on an editable canvas, exported as one self-contained HTML |
 | `/estimate` | A plan in days: epics, tasks, end-to-end tests, contingency |
 | `/dev-tasks` | Breaks each task into assignable pieces of work |
 | `/mockup` | Composed page mockups from a themed component library |
+| `/design` | Social posts and banners as free HTML artboards on your brand tokens, each downloadable as PNG |
 | `/test-plan` | Test cases traced back to the epics they cover |
 | `/deck` | Kick-off, status and demo decks, as PowerPoint and HTML |
 | `/ticket` | Triage for a maintenance ticket on a delivered project |
