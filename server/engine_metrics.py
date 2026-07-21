@@ -67,6 +67,7 @@ class EngineMetrics:
     def __init__(self, base_url: str = "http://127.0.0.1:8080") -> None:
         self.base_url = base_url
         self._previous: dict[str, float] | None = None
+        self._last: dict | None = None
 
     async def read(self) -> dict:
         try:
@@ -75,8 +76,20 @@ class EngineMetrics:
                 metrics.raise_for_status()
                 raw = _parse(metrics.text)
                 slots = await self._slots(client)
+        except httpx.ConnectError:
+            # Nothing is listening: the engine is off, or not up yet. Forget the session
+            # so the next engine start is not diffed against dead counters.
+            self._previous = None
+            self._last = None
+            return {"running": False}
         except (httpx.HTTPError, ValueError):
-            # The engine is off, or starting: not an error, just nothing to show yet.
+            # The engine is there but did not answer in time: under heavy prefill
+            # llama-server can hold /metrics for seconds. Reporting "off" here made the
+            # sidebar panel blink out and back mid-turn — the one moment someone is
+            # watching it. Repeat the last good reading instead, marked busy (a healthy
+            # idle engine answers instantly) and its rates as estimates.
+            if self._last is not None:
+                return {**self._last, "busy": True, "rates_live": False}
             return {"running": False}
 
         previous, self._previous = self._previous, raw
@@ -85,7 +98,7 @@ class EngineMetrics:
                                                  "predicted_seconds", "predicted_gauge")
         prefill, prefill_live = self._rate(raw, previous, "prompt_tokens",
                                            "prompt_seconds", "prompt_gauge")
-        return {
+        self._last = {
             "running": True,
             "busy": busy,
             "generation_tps": generation,
@@ -100,6 +113,7 @@ class EngineMetrics:
             "context_peak": int(raw.get("context_peak", 0)) or None,
             "queued": int(raw.get("deferred", 0)),
         }
+        return self._last
 
     async def _slots(self, client: httpx.AsyncClient) -> dict:
         """Context actually held right now. Separate endpoint, and optional: some builds

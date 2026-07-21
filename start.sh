@@ -14,6 +14,25 @@ cd "$(dirname "$0")"
 PORT=3000
 VENV=".venv"
 
+# --- .env ---
+# Machine-specific settings (LLAMA_SERVER, MODELS_DIR...) live in a .env file next to
+# this script — gitignored, so each machine keeps its own and launching from a fresh
+# shell still finds the engine and the models. Variables already set in the shell win
+# over the file.
+if [ -f .env ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in ''|\#*) continue ;; esac
+        key=${line%%=*}
+        value=${line#*=}
+        key=$(printf '%s' "$key" | tr -d '[:space:]')
+        value=${value%\"}; value=${value#\"}
+        [ -n "$key" ] || continue
+        if ! printenv "$key" >/dev/null 2>&1; then
+            export "$key=$value"
+        fi
+    done < .env
+fi
+
 red()  { printf '\033[31m%s\033[0m\n' "$1"; }
 dim()  { printf '\033[2m%s\033[0m\n' "$1"; }
 warn() { printf '\033[33m%s\033[0m\n' "$1"; }

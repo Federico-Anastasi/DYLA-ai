@@ -15,6 +15,12 @@
  */
 
 :root {
+  /* Native widgets (the open list of a <select>, scrollbars, pickers) are painted by
+     the browser, not by this stylesheet — without this they come out white on the
+     dark interface. If you build a light theme, flip it to `light` along with the
+     colours below. */
+  color-scheme: dark;
+
   /* Surfaces, from the page background up to the raised panels. They step up in
      small increments: too much contrast between them and the interface looks like
      a stack of boxes instead of one screen. The greys lean blue so the accent sits
@@ -46,4 +52,24 @@
   --err: #ff6b6b;
 
   --radius: 10px;
+
+  /* Technical diagrams (DiagramView): one colour per semantic node class — the schema
+     enum decides shape AND colour, never a literal per node (see schemas/diagram.schema.json).
+     People/systems read cool and neutral; workflow steps read warm; start/end borrow the
+     app's ok/err pair so a flow's entry and exit are legible at a glance. */
+  --dg-actor: #9b6bd1;
+  --dg-frontend: #2f80ff;
+  --dg-backend: #3aa0d0;
+  --dg-service: #3ab795;
+  --dg-database: #d6a13a;
+  --dg-storage: #c07a3f;
+  --dg-queue: #b58b2a;
+  --dg-external: #94a5bd;
+  --dg-security: #ff6b6b;
+  --dg-start: #2fd08a;
+  --dg-end: #ff6b6b;
+  --dg-process: #2f80ff;
+  --dg-decision: #e0a83e;
+  --dg-document: #7db4ff;
+  --dg-manual: #94a5bd;
 }

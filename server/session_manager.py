@@ -445,6 +445,17 @@ class SessionManager:
         row of the estimate): stored as-is in THAT chat's history and used to enrich the prompt
         actually sent to the SDK (see build_prompt).
         """
+        # The engine must be up BEFORE the turn, not only when the profile is picked in
+        # the settings: set_active() starts it, but after an app restart the profile is
+        # already "local" and nobody calls set_active again — the first turn then talks
+        # to a dead port for minutes and comes back empty, with no error. Observed live.
+        # ensure_engine blocks up to 90s while the model loads, hence the thread.
+        if self.router.is_local():
+            try:
+                await asyncio.to_thread(self.router.ensure_engine)
+            except Exception as e:
+                yield {"type": "error", "message": str(e)}
+                return
         sess = await self._get_session(project, chat_id)
         if sess.lock.locked():
             yield {"type": "error", "message": "a turn is already running on this chat"}

@@ -82,3 +82,48 @@ async def test_an_engine_that_is_not_there_is_not_an_error():
     panel simply does not appear. A 500 here would surface as a broken app."""
     m = EngineMetrics(base_url="http://127.0.0.1:1")  # nothing listens there
     assert await m.read() == {"running": False}
+
+
+@pytest.mark.asyncio
+async def test_a_slow_engine_is_busy_not_gone(monkeypatch):
+    """Under heavy prefill llama-server can hold /metrics past the timeout. That used to
+    come back as running:false, and the sidebar panel blinked out and back mid-turn —
+    observed live at 128k context. A slow engine repeats its last good reading, marked
+    busy and with the rates flagged as estimates."""
+    import httpx
+
+    m = EngineMetrics()
+    m._last = {"running": True, "busy": False, "generation_tps": 23.8, "rates_live": True}
+
+    async def slow_get(self, url):
+        raise httpx.ReadTimeout("engine holding /metrics")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", slow_get)
+    out = await m.read()
+    assert out["running"] is True
+    assert out["busy"] is True, "no answer in time means it is working, not gone"
+    assert out["rates_live"] is False, "repeated numbers are estimates, say so"
+
+
+@pytest.mark.asyncio
+async def test_a_slow_engine_with_no_history_shows_nothing(monkeypatch):
+    """A timeout before any successful reading: there is nothing truthful to repeat."""
+    import httpx
+
+    async def slow_get(self, url):
+        raise httpx.ReadTimeout("engine holding /metrics")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", slow_get)
+    assert await EngineMetrics().read() == {"running": False}
+
+
+@pytest.mark.asyncio
+async def test_an_engine_that_went_away_is_forgotten():
+    """Connection refused is a different fact from a timeout: the process is gone. The
+    remembered reading and counters must go with it, or the next engine start would show
+    stale numbers and diff against dead counters."""
+    m = EngineMetrics(base_url="http://127.0.0.1:1")
+    m._last = {"running": True, "busy": True}
+    m._previous = {"predicted_tokens": 1000.0}
+    assert await m.read() == {"running": False}
+    assert m._last is None and m._previous is None

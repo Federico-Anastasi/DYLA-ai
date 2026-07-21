@@ -10,6 +10,22 @@ Set-Location $PSScriptRoot
 $PORT = 3000
 $VENV = Join-Path $PSScriptRoot ".venv"
 
+# --- .env ---
+# Machine-specific settings (LLAMA_SERVER, MODELS_DIR...) live in a .env file next to
+# this script — gitignored, so each machine keeps its own and launching from a fresh
+# shell still finds the engine and the models. Variables already set in the shell win
+# over the file.
+$envFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $envFile) {
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match '^\s*(#|$)') { continue }
+        $name, $value = $line.Split("=", 2)
+        $name = $name.Trim()
+        $value = $value.Trim().Trim('"').Trim("'")
+        if ($name -and -not (Test-Path "Env:$name")) { Set-Item "Env:$name" $value }
+    }
+}
+
 function Fail($message, $howToFix) {
     Write-Host ""
     Write-Host "  $message" -ForegroundColor Red
