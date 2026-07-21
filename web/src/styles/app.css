@@ -1108,6 +1108,190 @@ table.doc-table tr.dev-task-row td { background: var(--panel-2); font-weight: 40
   padding: 5px 7px; font: inherit; font-size: 12px; width: 100%; box-sizing: border-box;
 }
 
+/* ---------- technical diagrams (DiagramView) ---------- */
+.dg-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+.dg-tabbar {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; background: var(--panel);
+}
+.dg-tab {
+  display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: 7px;
+  background: var(--panel-2); border: 1px solid transparent; color: var(--muted); font-size: 12.5px;
+  cursor: pointer; white-space: nowrap;
+}
+.dg-tab:hover { color: var(--text); }
+.dg-tab.active { background: var(--panel-3); border-color: var(--accent); color: var(--text); }
+.dg-tab-kind { font-size: 10px; color: var(--muted); background: var(--bg); border-radius: 5px; padding: 1px 6px; }
+.dg-tab-delete { opacity: 0; transition: opacity .12s; }
+.dg-tab:hover .dg-tab-delete { opacity: 1; }
+.dg-rename-input {
+  background: var(--panel-3); color: var(--text); border: 1px solid var(--accent); border-radius: 5px;
+  padding: 1px 5px; font: inherit; font-size: 12.5px; width: 100%; box-sizing: border-box;
+}
+
+/* generic anchor for a small dropdown triggered by a plain toolbar button (not inside the SVG) */
+.dg-menu-anchor { position: relative; display: inline-flex; }
+.dg-picker {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 25; min-width: 170px;
+  background: var(--panel-3); border: 1px solid var(--border); border-radius: 9px; padding: 6px;
+  display: flex; flex-direction: column; gap: 2px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  max-height: 60vh; overflow-y: auto;
+}
+.dg-picker-item { padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 12.5px; white-space: nowrap; }
+.dg-picker-item:hover { background: var(--panel-2); color: var(--accent-soft); }
+
+.dg-popover {
+  z-index: 25; background: var(--panel-3); border: 1px solid var(--border); border-radius: 9px; padding: 8px;
+  display: flex; flex-direction: column; gap: 6px; width: 200px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+.dg-popover select, .dg-popover input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 7px; font: inherit; font-size: 12px; width: 100%; box-sizing: border-box;
+}
+
+.dg-notes-input {
+  flex: 1 1 260px; max-width: 420px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 11.5px;
+}
+
+.dg-canvas-wrap { position: relative; flex: 1; min-width: 0; }
+.dg-wrap { display: block; width: 100%; height: 100%; overflow: hidden; cursor: grab; background: var(--bg); }
+.dg-wrap.panning { cursor: grabbing; }
+
+/* nodes: the shape's stroke/fill come from the class-colour CSS variable set on classColorVar()
+   (--dg-<class> in theme.css) — never a literal colour per node. */
+.dg-node { cursor: grab; }
+.dg-node:active { cursor: grabbing; }
+.dg-node-shape { transition: stroke .1s ease; }
+.dg-node:hover .dg-node-shape { filter: brightness(1.12); }
+.dg-node-label { font-size: 12px; fill: var(--text); font-weight: 500; }
+.dg-node-desc { font-size: 10px; fill: var(--muted); }
+.dg-node-actions, .dg-group-actions { opacity: 0; transition: opacity .12s; }
+.dg-node:hover .dg-node-actions, .dg-group:hover .dg-group-actions { opacity: 1; }
+.dg-node-actions .icon-btn, .dg-group-actions .icon-btn { width: 20px; height: 20px; background: var(--panel-3); border-radius: 5px; }
+
+.dg-port-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; opacity: 0; transition: opacity .12s; cursor: crosshair; }
+.dg-node:hover .dg-port-dot { opacity: 1; }
+
+.dg-group-box { fill: rgba(148, 165, 189, .06); stroke: var(--border); stroke-width: 1.4; stroke-dasharray: 6 4; }
+.dg-group.selected .dg-group-box { stroke: var(--accent); }
+.dg-group-label { font-size: 11px; fill: var(--muted); cursor: text; }
+
+/* swimlane mode (workflow + groups[] with at least one grouped node): full-width horizontal
+   bands stacked in groups[] order, a left label strip, and a faint alternating background —
+   all theme CSS variables, never a literal colour. */
+.dg-lane-bg { fill: transparent; }
+.dg-lane-bg-alt { fill: var(--panel-2); opacity: .45; }
+.dg-lane-border { stroke: var(--border); stroke-width: 1; }
+.dg-lane-border-strong { stroke: var(--border); stroke-width: 1.4; }
+.dg-lane-label { font-size: 11px; font-weight: 600; fill: var(--muted); cursor: text; }
+.dg-lane.selected .dg-lane-label { fill: var(--accent); }
+
+.dg-edge-hit { fill: none; stroke: transparent; stroke-width: 10; cursor: pointer; }
+.dg-edge-line { fill: none; }
+.dg-edge-label { font-size: 10.5px; fill: var(--muted); }
+
+/* sequence diagrams: fixed lifelines/messages, no drag */
+.dg-seq-header rect { cursor: pointer; }
+.dg-seq-lifeline { stroke: var(--border); stroke-width: 1.4; stroke-dasharray: 4 4; }
+.dg-seq-msg-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.dg-seq-msg-line { fill: none; }
+.dg-seq-msg-label { font-size: 10.5px; fill: var(--muted); }
+.dg-seq-reorder { opacity: 0; transition: opacity .12s; }
+.dg-seq-header:hover .dg-seq-reorder, .dg-seq-msg:hover .dg-seq-reorder { opacity: 1; }
+.dg-seq-reorder-row { display: flex; gap: 1px; }
+.dg-seq-reorder .icon-btn { width: 18px; height: 18px; background: var(--panel-3); border-radius: 4px; }
+.dg-seq-add-msg { cursor: pointer; color: var(--muted); }
+.dg-seq-add-msg line { stroke: var(--border); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.dg-seq-add-msg text { font-size: 10.5px; fill: var(--muted); }
+.dg-seq-add-msg:hover line { stroke: var(--accent); }
+.dg-seq-add-msg:hover text { fill: var(--accent-soft); }
+
+.dg-edit-box {
+  display: flex; flex-direction: column; gap: 4px; background: var(--panel-3); border: 1px solid var(--accent);
+  border-radius: 7px; padding: 6px; height: 100%; box-sizing: border-box; justify-content: center;
+}
+.dg-edit-box input, .dg-edit-box select {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px;
+  padding: 3px 6px; font: inherit; font-size: 11.5px; width: 100%; box-sizing: border-box;
+}
+.dg-edit-box-inline { justify-content: center; }
+
+.dg-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+/* ---------- social/graphic designs (DesignView) ---------- */
+/* Same shape as .dg-editor/.dg-canvas-wrap: a header toolbar, then a row that fills the
+   rest of the panel. The right side is a real iframe onto design.html (the backend export)
+   — this view never draws a template itself, so there is nothing here to keep in parity
+   with server/design_export.py. */
+.ds-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ds-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.ds-body { flex: 1; min-height: 0; display: flex; }
+.ds-sidebar {
+  width: 380px; flex-shrink: 0; overflow-y: auto; padding: 12px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px; border-right: 1px solid var(--border);
+}
+.ds-preview { flex: 1; min-width: 0; position: relative; background: #fff; }
+
+.ds-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; flex: 1 1 140px; min-width: 0; }
+.ds-field-block { flex: 1 1 100%; }
+.ds-field input, .ds-field select, .ds-field textarea {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 8px; font: inherit; font-size: 12.5px; box-sizing: border-box; width: 100%; resize: vertical;
+}
+
+.ds-brand { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
+.ds-brand-header {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--text); user-select: none;
+}
+.ds-brand-header:hover { color: var(--accent-soft); }
+.ds-brand-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.ds-brand-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ds-color-field { flex: 1 1 100px; }
+.ds-color-input { display: flex; gap: 5px; align-items: center; }
+.ds-color-input input[type=color] {
+  width: 28px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 5px;
+  background: none; cursor: pointer; flex-shrink: 0;
+}
+.ds-color-input input[type=text] { flex: 1; min-width: 0; }
+
+.ds-list-head { display: flex; align-items: center; gap: 6px; }
+
+.ds-add-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ds-add-row select {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 6px; font: inherit; font-size: 11.5px;
+}
+
+.ds-list-empty { margin: 0; padding: 14px; max-width: none; }
+
+.ds-list { display: flex; flex-direction: column; gap: 4px; }
+.ds-item {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 7px;
+  background: var(--panel-2); border: 1px solid transparent; color: var(--muted); cursor: pointer; font-size: 12.5px;
+}
+.ds-item:hover { color: var(--text); }
+.ds-item.active { border-color: var(--accent); background: var(--panel-3); color: var(--text); }
+.ds-item-id { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+.ds-badge { font-size: 10px; color: var(--muted); background: var(--bg); border-radius: 5px; padding: 1px 6px; white-space: nowrap; }
+.ds-item-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity .12s; }
+.ds-item:hover .ds-item-actions { opacity: 1; }
+.ds-item-actions .icon-btn { width: 20px; height: 20px; }
+
+.ds-form { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+.ds-form-head { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ds-html-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-size: 12px !important; line-height: 1.5; min-height: 320px; white-space: pre;
+  tab-size: 2;
+}
+.ds-html-count { text-align: right; }
+
 /* ---------- "ask the assistant" popover ---------- */
 .anchor-wrap { position: relative; display: inline-flex; }
 .ask-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 5px; }

@@ -20,6 +20,8 @@ from pydantic import BaseModel
 from .config import PROJECTS_DIR, ROOT, RUNTIME_DIR
 from . import agenda
 from . import deck_export
+from . import design_export
+from . import diagram_export
 from . import engine_setup
 from . import dictation as dictation_mod
 from . import docx_export
@@ -56,7 +58,7 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 # a project has one is worked out separately.
 DELIVERABLES = ["context.md", "estimate.json", "data_model.json", "mockup.json",
                 "timeline.json", "questions.json", "people.json", "test_plan.json",
-                "deck.json"]
+                "deck.json", "diagram.json", "design.json"]
 
 
 def _project_dir(name: str, must_exist: bool = True):
@@ -557,6 +559,8 @@ EXPORT_MAP = {
     "deck.pptx": ("deck", deck_export.deck_pptx,
                   "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
     "deck.html": ("deck", deck_export.deck_html, "text/html; charset=utf-8"),
+    "diagram.html": ("diagram", diagram_export.diagram_html, "text/html; charset=utf-8"),
+    "design.html": ("design", design_export.design_html, "text/html; charset=utf-8"),
 }
 
 

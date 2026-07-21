@@ -8,6 +8,8 @@ import type {
   ChatsResponse,
   DataModelDoc,
   DeckDoc,
+  DesignDoc,
+  DiagramDoc,
   DictationResult,
   DocKind,
   EngineMetrics,
@@ -171,7 +173,11 @@ export const apiClient = {
                     ? TestPlanDoc
                     : K extends "deck"
                       ? DeckDoc
-                      : MockupDoc
+                      : K extends "diagram"
+                        ? DiagramDoc
+                        : K extends "design"
+                          ? DesignDoc
+                          : MockupDoc
     >(`/projects/${encodeURIComponent(name)}/doc/${kind}`),
 
   putDoc: (name: string, kind: DocKind, doc: unknown) =>

@@ -5,6 +5,8 @@ import type { VersionsMap } from "../../hooks/useProjectPanel";
 import AnchorButton from "./AnchorButton";
 import PeopleView from "./PeopleView";
 import DataModelView from "./DataModelView";
+import DiagramView from "./DiagramView";
+import DesignView from "./DesignView";
 import QuestionsView from "./QuestionsView";
 import IframeView from "./IframeView";
 import MarkdownFileView from "./MarkdownFileView";
@@ -21,6 +23,8 @@ const DOC_FILE: Record<string, string> = {
   estimate: "estimate.json",
   data_model: "data_model.json",
   mockup: "mockup.json",
+  diagram: "diagram.json",
+  design: "design.json",
   test_plan: "test_plan.json",
   deck: "deck.json",
   questions: "questions.json",
@@ -33,6 +37,8 @@ const DOC_EXPORT: Record<string, string> = {
   estimate: "estimate.xlsx",
   data_model: "data_model.html",
   mockup: "mockup.html",
+  diagram: "diagram.html",
+  design: "design.html",
   test_plan: "test_plan.xlsx",
   deck: "deck.pptx",
 };
@@ -133,6 +139,12 @@ export default function DocumentViewer({
               )}
               {selection.kind === "doc" && selection.doc === "mockup" && (
                 <MockupView key={project} project={project} tick={tick} />
+              )}
+              {selection.kind === "doc" && selection.doc === "diagram" && (
+                <DiagramView key={project} project={project} tick={tick} onSaved={onSaved} onDirtyChange={onDirtyChange} />
+              )}
+              {selection.kind === "doc" && selection.doc === "design" && (
+                <DesignView key={project} project={project} tick={tick} onSaved={onSaved} onDirtyChange={onDirtyChange} />
               )}
               {selection.kind === "doc" && selection.doc === "brief" && (
                 <BriefView key={project} project={project} tick={tick} anchor={selection.anchor} />

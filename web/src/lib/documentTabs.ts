@@ -44,6 +44,8 @@ export const OUTPUT_DOCS: OutputDocDef[] = [
   { doc: "data_model", label: "Data Model", skill: "data-model",
     workflowKey: "data_model.json", group: "output" },
   { doc: "mockup", label: "Mockup", skill: "mockup", workflowKey: "mockup.json", group: "output" },
+  { doc: "diagram", label: "Diagrams", skill: "diagram", workflowKey: "diagram.json", group: "output" },
+  { doc: "design", label: "Designs", skill: "design", workflowKey: "design.json", group: "output" },
   { doc: "test_plan", label: "Test plan", skill: "test-plan",
     workflowKey: "test_plan.json", group: "output" },
   { doc: "deck", label: "Deck", skill: "deck", workflowKey: "deck.json", group: "output" },

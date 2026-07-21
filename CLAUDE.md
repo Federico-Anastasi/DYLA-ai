@@ -45,8 +45,9 @@ in one call, instead of a list of links that costs two more turns to follow.
 Skills live in `.claude/skills/`. Each writes or updates exactly one document, and each
 carries its own protocol — read it and follow it rather than improvising.
 
-`/meeting-notes` · `/meeting` · `/data-model` · `/estimate` · `/dev-tasks` · `/mockup` ·
-`/test-plan` · `/deck` · `/ticket` · `/pipeline` (runs the sequence end to end)
+`/meeting-notes` · `/meeting` · `/data-model` · `/diagram` · `/estimate` · `/dev-tasks` ·
+`/mockup` · `/design` · `/test-plan` · `/deck` · `/ticket` · `/pipeline` (runs the
+sequence end to end)
 
 ### The chat talks, the viewer shows
 
@@ -82,7 +83,15 @@ Each project is a folder under `projects/<name>/`:
 - **`estimate.json`** — epics → tasks with days and notes, end-to-end tests, contingency,
   and the granular dev tasks nested inside each task. Exports: estimate.xlsx, dev_tasks.xlsx
 - **`data_model.json`** — entities, fields, relationships, areas. Exports: .drawio, .html
+- **`diagram.json`** — technical diagrams: architecture views, operational workflows,
+  dataflows, sequences. Nodes carry semantic classes, not colours; `nodes[].pos` is the
+  user's manual placement on the canvas — preserve it by id, never write it for new
+  nodes. Export: a single self-contained diagram.html
 - **`mockup.json`** — pages composed from the themed component library. Export: a single HTML file
+- **`design.json`** — graphic designs (posts, stories, banners): the agent designs each
+  artboard as free HTML/CSS at its exact pixel size, honouring the brand tokens; the
+  backend wraps and sanitises it (no scripts, no external resources). Export:
+  design.html with per-post PNG download
 - **`timeline.json`** — the schedule: team, start date, time off, milestones, and the
   ordered lane of work per person. **The user fills this in from the board, not you**
 - **`test_plan.json`** — test cases traced to the epics. Export: xlsx

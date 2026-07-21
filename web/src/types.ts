@@ -375,6 +375,118 @@ export type MockupDoc = {
   pages: MockupPage[];
 };
 
+// ---------- technical diagrams ----------
+// diagram.json: architecture / workflow / dataflow / sequence diagrams (see
+// schemas/diagram.schema.json). "class" is a semantic enum — it decides the node's shape and
+// colour in DiagramView, never a literal colour stored in the JSON. "pos" is the manual
+// position set by dragging on the canvas; absent means the node takes part in the client-side
+// auto-layout (see lib/diagramLayout.ts-equivalent logic inside DiagramView) and is never
+// written for a node the agent creates.
+
+export type DiagramNodeClass =
+  | "actor"
+  | "frontend"
+  | "backend"
+  | "service"
+  | "database"
+  | "storage"
+  | "queue"
+  | "external"
+  | "security"
+  | "start"
+  | "end"
+  | "process"
+  | "decision"
+  | "document"
+  | "manual";
+
+export type DiagramPos = { x: number; y: number };
+
+export type DiagramGroup = { id: string; label: string; parent?: string };
+
+export type DiagramNode = {
+  id: string;
+  label: string;
+  class: DiagramNodeClass;
+  group?: string;
+  desc?: string;
+  pos?: DiagramPos;
+};
+
+export type DiagramEdgeStyle = "solid" | "dashed";
+
+export type DiagramEdge = { from: string; to: string; label?: string; style?: DiagramEdgeStyle };
+
+export type DiagramKind = "architecture" | "workflow" | "dataflow" | "sequence";
+
+export type Diagram = {
+  id: string;
+  kind: DiagramKind;
+  title: string;
+  notes?: string;
+  groups?: DiagramGroup[];
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+};
+
+export type DiagramMeta = {
+  project: string;
+  title: string;
+  date: string;
+  status?: "draft" | "confirmed";
+};
+
+export type DiagramDoc = {
+  meta: DiagramMeta;
+  diagrams: Diagram[];
+};
+
+// ---------- social/graphic designs ----------
+// design.json: graphic artefacts (social posts, stories, banners, slides) where the agent
+// designs freely in HTML/CSS, one artboard per design at its exact pixel size (see
+// schemas/design.schema.json). The backend (server/design_export.py) wraps, sanitises and
+// sizes each artboard's `html` for the design.html export; DesignView never replicates the
+// artboard itself — it only edits the HTML and previews the real export in an iframe.
+
+export type DesignFormat = "ig-square" | "ig-portrait" | "ig-story" | "li-landscape" | "custom";
+
+export type Design = {
+  id: string;
+  format: DesignFormat;
+  width?: number;
+  height?: number;
+  title?: string;
+  notes?: string;
+  html: string;
+};
+
+export type DesignBrandColors = {
+  primary: string;
+  accent?: string;
+  background: string;
+  text: string;
+};
+
+export type DesignBrand = {
+  name: string;
+  handle?: string;
+  colors: DesignBrandColors;
+  voice?: string;
+};
+
+export type DesignMeta = {
+  project: string;
+  title: string;
+  date: string;
+  status?: "draft" | "confirmed";
+};
+
+export type DesignDoc = {
+  meta: DesignMeta;
+  brand: DesignBrand;
+  designs: Design[];
+};
+
 // ---------- timeline ----------
 
 // timeline.json holds the plan as ordered LANES per developer, plus the parameters (team,
@@ -664,7 +776,9 @@ export type DocKind =
   | "questions"
   | "people"
   | "test_plan"
-  | "deck";
+  | "deck"
+  | "diagram"
+  | "design";
 
 // ---------- WS events ----------
 

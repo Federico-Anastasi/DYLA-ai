@@ -23,8 +23,11 @@ from .versioning import snapshot
 DOC_NAMES = {"estimate", "data_model", "mockup", "timeline",
              # The brief we write ourselves (only projects with source
              # "discovery"), the queue of open questions to the client, the
-             # people involved, the test plan and the slide deck.
-             "brief", "questions", "people", "test_plan", "deck"}
+             # people involved, the test plan, the slide deck and the
+             # technical diagrams (architecture, workflow, dataflow, sequence).
+             "brief", "questions", "people", "test_plan", "deck", "diagram",
+             # Social/graphic designs composed from the themed template library.
+             "design"}
 
 SCHEMAS_DIR = ROOT / "schemas"
 

@@ -2,7 +2,7 @@
 
 # Dyla
 
-### Develop Your Local Assistant
+### Develop Your Local Assistant/agent
 
 **An AI workspace that turns project work into deliverables you can actually send —
 running on a model on your own machine.**
