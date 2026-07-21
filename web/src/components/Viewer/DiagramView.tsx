@@ -56,6 +56,15 @@ const LANE_NODE_GAP = 20; // gap between nodes stacked in the same rank+lane cel
 const LANE_INNER_PAD = 20; // vertical padding inside a lane around its stacked content
 const OTHER_LANE_ID = "__other__"; // synthetic lane for nodes with no (resolved) group
 
+// A wide swimlane workflow folds into a "score": S systems (pages) stacked vertically, each
+// repeating the full lane stack from its own left margin, rank columns continuing from where
+// the previous system stopped — same contract as server/diagram_export.py's PDF/HTML export,
+// so the on-screen editor and the exported document agree on where a workflow breaks.
+const SYSTEM_GAP = 60; // vertical air between two stacked systems
+const MAX_SYSTEMS = 4; // never fold past this many systems, however wide the workflow is
+const SWIMLANE_TARGET_ASPECT = 1.9; // pick the smallest S that brings width/height under this
+const OFFPAGE_R = 9; // off-page connector circle radius (BPMN-style stub between systems)
+
 const SEQ_HEADER_W = 150;
 const SEQ_HEADER_H = 46;
 const SEQ_GAP = 210; // spacing between lifelines
@@ -323,18 +332,59 @@ function laneIdForNode(node: DiagramNode, groupsById: Map<string, DiagramGroup>)
 }
 
 type LaneBox = { id: string; label: string; y: number; h: number; index: number };
+// One repeated "page" of the score: a contiguous run of ranks, stacked below the previous
+// system. width is that system's own content width (LANE_LABEL_W + its ranks) — systems can
+// differ slightly in width, same as a score's last line not needing to reach the margin.
+type SystemBox = { index: number; yOffset: number; width: number; rankStart: number; rankEnd: number };
+type SwimlaneLayout = {
+  autoPos: Map<string, { x: number; y: number }>;
+  lanes: LaneBox[];
+  systems: SystemBox[];
+  laneStackHeight: number; // height of ONE repeated lane stack (systems are this tall, + SYSTEM_GAP apart)
+  rankSystem: number[]; // rankSystem[r] = which system rank r was folded into
+};
+
+// Splits `totalRanks` contiguous ranks into (up to) `s` chunks, each restarting its rank axis
+// from 0 — the swimlane analogue of computeLayeredAutoPos's row-folding, except each chunk
+// becomes a full repeated system rather than a bare row. Pure and cheap (a handful of ranks),
+// so computeSwimlaneLayout below calls it once per candidate S to size the pick.
+function splitIntoSystems(totalRanks: number, colExtent: number[], s: number) {
+  const ranksPerSystem = Math.max(1, Math.ceil(totalRanks / s));
+  const colStart = new Array(totalRanks).fill(0);
+  const rankSystem = new Array(totalRanks).fill(0);
+  const widths: number[] = [];
+  let numSystems = 0;
+  for (let sys = 0; sys * ranksPerSystem < totalRanks; sys++) {
+    const rankStart = sys * ranksPerSystem;
+    const rankEnd = Math.min(rankStart + ranksPerSystem, totalRanks);
+    let acc = 0;
+    for (let r = rankStart; r < rankEnd; r++) {
+      rankSystem[r] = sys;
+      colStart[r] = acc;
+      acc += colExtent[r] + RANK_GAP_WORKFLOW;
+    }
+    widths.push(LANE_LABEL_W + Math.max(0, acc - RANK_GAP_WORKFLOW));
+    numSystems++;
+  }
+  return { ranksPerSystem, numSystems, colStart, rankSystem, widths };
+}
 
 // Every top-level group is a full-width horizontal lane, stacked in groups[] order; nodes
 // with no (resolved) group land in a synthetic "Other" lane at the bottom, added only if
-// needed. Flow is left-to-right by rank, same rank axis as the plain layered layout but
-// never folded into a serpentine — a node's y is its lane's vertical centre, and a lane
-// grows (floor MIN_LANE_HEIGHT) to fit the tallest rank/lane cell once nodes sharing a
-// rank+lane stack vertically.
+// needed. Flow is left-to-right by rank, same rank axis as the plain layered layout — but
+// past SWIMLANE_TARGET_ASPECT a serpentine row-fold would just make lanes wider without
+// helping, so a swimlane workflow instead folds like sheet music: the smallest S (1..
+// MAX_SYSTEMS) whose systems bring width/height under the target, each system repeating the
+// whole lane stack (see the .dg-lane-system render) rather than one arbitrarily wide ribbon.
+// A node's y is its lane's vertical centre within its system, and a lane grows (floor
+// MIN_LANE_HEIGHT) to fit the tallest rank/lane cell once nodes sharing a rank+lane stack
+// vertically. Edges whose endpoints land in different systems render as off-page connectors
+// (see the edges block) instead of a line wrapping across the whole figure.
 function computeSwimlaneLayout(
   diagram: Diagram,
   rank: Map<string, number>,
   byRank: Map<number, string[]>,
-): { autoPos: Map<string, { x: number; y: number }>; lanes: LaneBox[] } {
+): SwimlaneLayout {
   const nodesById = new Map(diagram.nodes.map((n) => [n.id, n]));
   const groups = diagram.groups ?? [];
   const groupsById = new Map(groups.map((g) => [g.id, g]));
@@ -346,15 +396,13 @@ function computeSwimlaneLayout(
   const maxRank = Math.max(0, ...Array.from(rank.values()));
   const totalRanks = maxRank + 1;
 
-  // x: a straight rank layout (no folding) at the compact workflow gap.
+  // Rank-axis extent, independent of how ranks later get folded into systems.
   const colExtent: number[] = [];
   for (let r = 0; r < totalRanks; r++) {
     const ids = byRank.get(r) ?? [];
     const widths = ids.map((id) => nodeSize(nodesById.get(id)!.class).w);
     colExtent.push(widths.length ? Math.max(...widths) : DEFAULT_SIZE.w);
   }
-  const colStart: number[] = [];
-  { let acc = 0; for (let r = 0; r < totalRanks; r++) { colStart.push(acc); acc += colExtent[r] + RANK_GAP_WORKFLOW; } }
 
   // Group nodes into (lane, rank) cells, in diagram.nodes order, to size each lane and to
   // centre each cell's stack within it.
@@ -377,16 +425,42 @@ function computeSwimlaneLayout(
   const laneHeight = laneStackExtent.map((h) => Math.max(MIN_LANE_HEIGHT, h + LANE_INNER_PAD * 2));
   const laneYBase: number[] = [];
   { let acc = 0; for (let i = 0; i < laneOrder.length; i++) { laneYBase.push(acc); acc += laneHeight[i]; } }
+  const laneStackHeight = laneYBase[laneOrder.length - 1] + laneHeight[laneOrder.length - 1];
+
+  // Pick S: the smallest system count (capped at MAX_SYSTEMS) whose width/height ratio is
+  // under the target, exactly the "S>=1, max 4" rule in the task contract.
+  let plan = splitIntoSystems(totalRanks, colExtent, 1);
+  for (let s = 1; s <= MAX_SYSTEMS; s++) {
+    const candidate = splitIntoSystems(totalRanks, colExtent, s);
+    const height = candidate.numSystems * laneStackHeight + (candidate.numSystems - 1) * SYSTEM_GAP;
+    const width = Math.max(...candidate.widths);
+    plan = candidate;
+    if (width / height <= SWIMLANE_TARGET_ASPECT || s === MAX_SYSTEMS) break;
+  }
+
+  const systems: SystemBox[] = [];
+  for (let sys = 0; sys < plan.numSystems; sys++) {
+    const rankStart = sys * plan.ranksPerSystem;
+    const rankEnd = Math.min(rankStart + plan.ranksPerSystem, totalRanks) - 1;
+    systems.push({
+      index: sys,
+      yOffset: sys * (laneStackHeight + SYSTEM_GAP),
+      width: plan.widths[sys],
+      rankStart,
+      rankEnd,
+    });
+  }
 
   const autoPos = new Map<string, { x: number; y: number }>();
   for (const [key, ids] of cell) {
     const [liStr, rStr] = key.split(":");
     const li = Number(liStr), r = Number(rStr);
+    const sys = plan.rankSystem[r] ?? 0;
     const total = stackHeight(ids);
-    let y = laneYBase[li] + (laneHeight[li] - total) / 2;
+    let y = systems[sys].yOffset + laneYBase[li] + (laneHeight[li] - total) / 2;
     for (const id of ids) {
       const h = nodeSize(nodesById.get(id)!.class).h;
-      autoPos.set(id, { x: colStart[r] + LANE_LABEL_W, y });
+      autoPos.set(id, { x: plan.colStart[r] + LANE_LABEL_W, y });
       y += h + LANE_NODE_GAP;
     }
   }
@@ -398,7 +472,7 @@ function computeSwimlaneLayout(
     h: laneHeight[i],
     index: i,
   }));
-  return { autoPos, lanes };
+  return { autoPos, lanes, systems, laneStackHeight, rankSystem: plan.rankSystem };
 }
 
 type GroupBox = { group: DiagramGroup; x: number; y: number; w: number; h: number; depth: number };
@@ -704,14 +778,34 @@ export default function DiagramView({
     [activeDiagram, isSwimlane, boxes],
   );
   const laneBoxes = swimlane?.lanes ?? [];
-  const laneWidth = isSwimlane
-    ? (boxes.length ? Math.max(...boxes.map((b) => b.x + b.w)) : LANE_LABEL_W + DEFAULT_SIZE.w)
-    : 0;
-  const laneRects: Rect[] = isSwimlane ? laneBoxes.map((l) => ({ x: 0, y: l.y, w: laneWidth, h: l.h })) : [];
+  const systemBoxes = swimlane?.systems ?? [];
+  // One rect per (system, lane): each system repeats the whole lane stack at its own yOffset
+  // and its own content width — see computeSwimlaneLayout's "score" fold.
+  const laneRects: Rect[] = isSwimlane
+    ? systemBoxes.flatMap((sys) => laneBoxes.map((l) => ({ x: 0, y: l.y + sys.yOffset, w: sys.width, h: l.h })))
+    : [];
   // Recomputed every render rather than memoized: cheap (a handful of rects), and it must
   // reflect laneRects/groupBoxes derived values without a fragile hand-maintained dep list.
   const bounds = computeBounds([...boxes, ...groupBoxes, ...laneRects]);
   const dragTarget = connDrag ? hitNode(boxes, connDrag.x, connDrag.y, connDrag.fromId) : null;
+
+  // Off-page connector numbering (swimlane only): a sequential number per edge whose endpoints
+  // fall in different systems — back-edges and forward skips alike, per the task contract.
+  // Kept as a plain useMemo (not derived inline in the render loop) so both the exit stub and
+  // the matching entry stub agree on the same number without threading extra state.
+  const crossingSystem = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!activeDiagram || !swimlane) return map;
+    let n = 0;
+    activeDiagram.edges.forEach((edge, i) => {
+      const fromRank = rankInfo.get(edge.from) ?? 0;
+      const toRank = rankInfo.get(edge.to) ?? 0;
+      const fromSys = swimlane.rankSystem[fromRank] ?? 0;
+      const toSys = swimlane.rankSystem[toRank] ?? 0;
+      if (fromSys !== toSys) map.set(i, ++n);
+    });
+    return map;
+  }, [activeDiagram, swimlane, rankInfo]);
 
   // Sequence layout: fixed lifelines (node order) and messages (edge order) — no auto-layout,
   // no dragging.
@@ -1325,58 +1419,59 @@ export default function DiagramView({
                 <>
                   {isSwimlane ? (
                     <>
-                      {laneBoxes.map((lane) => {
-                        const isRealGroup = lane.id !== OTHER_LANE_ID;
-                        const laneSelected = sel?.type === "group" && sel.id === lane.id;
+                      {systemBoxes.map((sys) => {
+                        const lastLane = laneBoxes[laneBoxes.length - 1];
+                        const bottomY = lastLane ? lastLane.y + lastLane.h + sys.yOffset : sys.yOffset;
                         return (
-                          <g key={lane.id} className={`dg-lane ${laneSelected ? "selected" : ""}`}>
-                            <rect
-                              className={`dg-lane-bg ${lane.index % 2 === 1 ? "dg-lane-bg-alt" : ""}`}
-                              x={0} y={lane.y} width={laneWidth} height={lane.h}
-                              onPointerDown={isRealGroup ? (e) => { e.stopPropagation(); setSel({ type: "group", id: lane.id }); } : undefined}
-                            />
-                            {editingGroup?.id === lane.id ? (
-                              <foreignObject x={8} y={lane.y + lane.h / 2 - 11} width={LANE_LABEL_W - 16} height={22} onPointerDown={(e) => e.stopPropagation()}>
-                                <input
-                                  className="dg-rename-input"
-                                  autoFocus
-                                  value={editingGroup.label}
-                                  onChange={(e) => setEditingGroup({ ...editingGroup, label: e.target.value })}
-                                  onBlur={commitGroupEdit}
-                                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingGroup(null); }}
-                                />
-                              </foreignObject>
-                            ) : (
-                              <text
-                                x={12}
-                                y={lane.y + lane.h / 2}
-                                dominantBaseline="middle"
-                                className="dg-lane-label"
-                                onDoubleClick={isRealGroup ? (e) => { e.stopPropagation(); const g = groups.find((x) => x.id === lane.id); if (g) startGroupEdit(g); } : undefined}
-                              >
-                                {lane.label}
-                              </text>
+                          <g key={`sys-${sys.index}`} className="dg-lane-system">
+                            {laneBoxes.map((lane) => {
+                              const isRealGroup = lane.id !== OTHER_LANE_ID;
+                              const laneSelected = sel?.type === "group" && sel.id === lane.id;
+                              const y = lane.y + sys.yOffset;
+                              return (
+                                <g key={lane.id} className={`dg-lane ${laneSelected ? "selected" : ""}`}>
+                                  <rect
+                                    className={`dg-lane-bg ${lane.index % 2 === 1 ? "dg-lane-bg-alt" : ""}`}
+                                    x={0} y={y} width={sys.width} height={lane.h}
+                                    onPointerDown={isRealGroup ? (e) => { e.stopPropagation(); setSel({ type: "group", id: lane.id }); } : undefined}
+                                  />
+                                  {editingGroup?.id === lane.id && sys.index === 0 ? (
+                                    <foreignObject x={8} y={y + lane.h / 2 - 11} width={LANE_LABEL_W - 16} height={22} onPointerDown={(e) => e.stopPropagation()}>
+                                      <input
+                                        className="dg-rename-input"
+                                        autoFocus
+                                        value={editingGroup.label}
+                                        onChange={(e) => setEditingGroup({ ...editingGroup, label: e.target.value })}
+                                        onBlur={commitGroupEdit}
+                                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingGroup(null); }}
+                                      />
+                                    </foreignObject>
+                                  ) : (
+                                    <text
+                                      x={12}
+                                      y={y + lane.h / 2}
+                                      dominantBaseline="middle"
+                                      className="dg-lane-label"
+                                      onDoubleClick={isRealGroup ? (e) => { e.stopPropagation(); const g = groups.find((x) => x.id === lane.id); if (g) startGroupEdit(g); } : undefined}
+                                    >
+                                      {lane.label}
+                                    </text>
+                                  )}
+                                </g>
+                              );
+                            })}
+                            {laneBoxes.map((lane) => (
+                              <line key={`b-${lane.id}`} className="dg-lane-border" x1={0} y1={lane.y + sys.yOffset} x2={sys.width} y2={lane.y + sys.yOffset} />
+                            ))}
+                            {laneBoxes.length > 0 && (
+                              <>
+                                <line className="dg-lane-border" x1={0} y1={bottomY} x2={sys.width} y2={bottomY} />
+                                <line className="dg-lane-border dg-lane-border-strong" x1={LANE_LABEL_W} y1={sys.yOffset} x2={LANE_LABEL_W} y2={bottomY} />
+                              </>
                             )}
                           </g>
                         );
                       })}
-                      {laneBoxes.map((lane) => (
-                        <line key={`b-${lane.id}`} className="dg-lane-border" x1={0} y1={lane.y} x2={laneWidth} y2={lane.y} />
-                      ))}
-                      {laneBoxes.length > 0 && (
-                        <>
-                          <line
-                            className="dg-lane-border"
-                            x1={0} y1={laneBoxes[laneBoxes.length - 1].y + laneBoxes[laneBoxes.length - 1].h}
-                            x2={laneWidth} y2={laneBoxes[laneBoxes.length - 1].y + laneBoxes[laneBoxes.length - 1].h}
-                          />
-                          <line
-                            className="dg-lane-border dg-lane-border-strong"
-                            x1={LANE_LABEL_W} y1={0}
-                            x2={LANE_LABEL_W} y2={laneBoxes[laneBoxes.length - 1].y + laneBoxes[laneBoxes.length - 1].h}
-                          />
-                        </>
-                      )}
                     </>
                   ) : (
                     groupBoxes.map((gb) => (
@@ -1429,6 +1524,69 @@ export default function DiagramView({
                     if (!fromBox || !toBox) return null;
                     const isSelf = edge.from === edge.to;
                     const isSel = sel?.type === "edge" && sel.index === i;
+
+                    // Swimlane mode, endpoints in different systems: an edge crossing the fold
+                    // (forward skip or back-edge alike) never draws as a line wrapping across
+                    // the whole score — it renders as a pair of BPMN-style off-page connectors,
+                    // a numbered stub leaving the source system's right edge and its twin
+                    // entering the destination system's left edge, per the task contract.
+                    if (isSwimlane && swimlane) {
+                      const fromRank = rankInfo.get(edge.from) ?? 0;
+                      const toRank = rankInfo.get(edge.to) ?? 0;
+                      const fromSys = swimlane.rankSystem[fromRank] ?? 0;
+                      const toSys = swimlane.rankSystem[toRank] ?? 0;
+                      if (fromSys !== toSys) {
+                        const num = crossingSystem.get(i) ?? 0;
+                        const exitSys = swimlane.systems[fromSys];
+                        const exitY = fromBox.y + fromBox.h / 2;
+                        const exitX = exitSys ? exitSys.width : fromBox.x + fromBox.w;
+                        const enterY = toBox.y + toBox.h / 2;
+                        const enterX = LANE_LABEL_W;
+                        const stroke = isSel ? "var(--accent)" : "var(--muted)";
+                        return (
+                          <g
+                            key={i}
+                            className={`dg-offpage ${isSel ? "selected" : ""}`}
+                            onPointerDown={(e) => { e.stopPropagation(); setSel({ type: "edge", index: i }); }}
+                          >
+                            <path
+                              className="dg-edge-line"
+                              d={`M ${fromBox.x + fromBox.w} ${exitY} L ${exitX} ${exitY}`}
+                              stroke={stroke}
+                              strokeWidth={isSel ? 2.2 : 1.4}
+                              strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
+                            />
+                            <circle className="dg-offpage-circle" cx={exitX} cy={exitY} r={OFFPAGE_R} stroke={stroke}>
+                              <title>{`→ ${toBox.node.label}`}</title>
+                            </circle>
+                            <text className="dg-offpage-num" x={exitX} y={exitY} textAnchor="middle" dominantBaseline="central">
+                              {num}
+                            </text>
+
+                            <path
+                              className="dg-edge-line"
+                              d={`M ${enterX} ${enterY} L ${toBox.x} ${enterY}`}
+                              stroke={stroke}
+                              strokeWidth={isSel ? 2.2 : 1.4}
+                              strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
+                              markerEnd={isSel ? "url(#dg-arrow-sel)" : "url(#dg-arrow)"}
+                            />
+                            <circle className="dg-offpage-circle" cx={enterX} cy={enterY} r={OFFPAGE_R} stroke={stroke}>
+                              <title>{`← ${fromBox.node.label}`}</title>
+                            </circle>
+                            <text className="dg-offpage-num" x={enterX} y={enterY} textAnchor="middle" dominantBaseline="central">
+                              {num}
+                            </text>
+                            {edge.label && (
+                              <text x={exitX} y={exitY - 14} textAnchor="middle" className="dg-edge-label" style={{ pointerEvents: "none" }}>
+                                {edge.label}
+                              </text>
+                            )}
+                          </g>
+                        );
+                      }
+                    }
+
                     let path: string;
                     let midX: number, midY: number;
                     if (isSelf) {

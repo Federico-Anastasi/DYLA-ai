@@ -23,15 +23,26 @@ not perfect graph drawing):
 - 'sequence': lifelines in nodes[] order, messages in edges[] order top to
   bottom; nodes[].pos is ignored (the ordering *is* the layout).
 - a 'workflow' longer than SERPENTINE_RANK_THRESHOLD ranks folds into a
-  serpentine of 2 (or 3, past 20 ranks) horizontal ROWS — row 0 left to right,
-  row 1 right to left, row 2 left to right again, and so on — so a long,
-  mostly-linear workflow stays a sane aspect ratio instead of one endless row
-  (see _serpentine_plan). 'architecture'/'dataflow' never fold this way: every
-  rank is always its own column. A 'workflow' that declares groups[] with at
-  least one node carrying a group switches to swimlane mode instead (see
-  _has_lanes / _lane_layout): one full-width horizontal lane per top-level
-  group, stacked in groups[] order, flow left to right within each lane, no
-  serpentine folding.
+  serpentine of horizontal ROWS — row 0 left to right, row 1 right to left,
+  row 2 left to right again, and so on — so a long, mostly-linear workflow
+  stays a sane aspect ratio instead of one endless row. The row count is
+  itself chosen "à la spartito" (like a musical score): the smallest count
+  (never more than MAX_WRAP_FOLDS) whose actual width/height ratio drops
+  under WRAP_ASPECT_TARGET (see _serpentine_plan). 'architecture'/'dataflow'
+  never fold this way: every rank is always its own column. A 'workflow'
+  that declares groups[] with at least one node carrying a group switches to
+  swimlane mode instead (see _has_lanes / _lane_layout): one full-width
+  horizontal lane per top-level group, stacked in groups[] order, flow left
+  to right within each lane. A swimlane workflow whose ranks would otherwise
+  run too wide folds the same "à la spartito" way, but vertically: into
+  stacked "systems", each one a full, self-contained repeat of the lane
+  stack (with labels) picking up the ranks where the previous system left
+  off (see _lane_system_plan). Any edge whose two ends land in different
+  systems — the ordinary continuation from one system to the next, or a
+  back-edge/long skip that happens to cross a system boundary — is drawn as
+  a pair of numbered off-page BPMN-style stub connectors instead of one
+  curve spanning every system in between (see _render_system_stubs), so nothing
+  ever has to bow across the whole stacked figure.
 - nodes[].pos, when present, is used as-is (top-left of the box) instead of the
   computed slot; everything else lays out around it. A final normalize step only
   shifts the whole drawing if something ends up within a few pixels of the
@@ -96,21 +107,41 @@ GROUP_PAD = 20
 GROUP_LABEL_H = 22
 SMALL_BUFFER = 10      # normalize only kicks in this close to the top/left edge
 
-# Workflows longer than this many ranks fold into a serpentine: 2 rows (3 past
-# 20 ranks), each read in the opposite horizontal direction from its neighbour,
-# so a long, mostly-linear workflow stays a sane aspect ratio instead of one
-# endless row (see _serpentine_plan). architecture/dataflow diagrams never
-# fold this way — every rank is always its own column.
+# Workflows longer than this many ranks fold into a serpentine: each read in
+# the opposite horizontal direction from its neighbour, so a long, mostly-
+# linear workflow stays a sane aspect ratio instead of one endless row (see
+# _serpentine_plan). architecture/dataflow diagrams never fold this way —
+# every rank is always its own column.
 SERPENTINE_RANK_THRESHOLD = 9
 ROW_GAP = 220          # gap between serpentine rows
 
+# "wrapping à la spartito" (musical score): shared by the non-lane row-
+# serpentine (_serpentine_plan) and the swimlane "system" fold (see
+# _lane_system_plan) — both pick the smallest fold count whose resulting
+# width/height ratio drops under this target, never folding into more than
+# MAX_WRAP_FOLDS rows/systems.
+WRAP_ASPECT_TARGET = 1.9
+MAX_WRAP_FOLDS = 4
+
 # swimlane mode (workflow with groups[] and at least one grouped node — see
 # _has_lanes / _lane_layout): one full-width horizontal lane per top-level
-# group, flow left to right within a lane, no serpentine folding.
+# group, flow left to right within a lane. A lane diagram whose ranks would
+# otherwise run too wide folds into stacked "systems" — like a musical
+# score: each system repeats the full lane stack (with labels) and picks up
+# the ranks where the previous system left off (see _lane_system_plan);
+# any edge crossing between two systems is drawn as a pair of numbered
+# off-page BPMN-style stub connectors instead of one spaghetti curve (see
+# _render_system_stubs).
 LANE_BAND_W = 140      # left label band width, spans the full height of its lane
 LANE_MIN_H = 120       # minimum lane height, even with a single small node in it
 LANE_PAD_V = 20        # vertical padding inside a lane around its stacked nodes
 LANE_RANK_GAP = 70     # gap between rank columns in swimlane mode
+SYSTEM_GAP = 60        # vertical gap between stacked swimlane "systems"
+STUB_LEN = 34          # off-page connector: length of the straight stub line
+STUB_R = 11            # off-page connector: numbered-circle radius
+STUB_RESERVE = STUB_LEN + STUB_R * 2 + 16  # extra width reserved at each
+                       # system's left/right border for the stub + circle,
+                       # whenever the diagram folds into more than one system
 
 # node label wrapping (see _wrap_label): short labels stay one line, longer
 # ones wrap onto two, and past a point each line is hard-truncated with an
@@ -330,18 +361,38 @@ def _group_boxes(groups: list[dict], node_boxes: dict[str, tuple[float, float, f
     return boxes
 
 
-def _serpentine_plan(total_ranks: int) -> tuple[int, int]:
-    """How a long workflow's ranks fold into rows. Up to
-    SERPENTINE_RANK_THRESHOLD ranks stay a single row (unchanged from before);
-    beyond that the ranks fold into 2 rows (3 past 20 ranks) of roughly equal
-    length, read as a serpentine — row 0 left to right, row 1 right to left,
-    row 2 left to right again — so a long near-linear workflow stays a sane
-    aspect ratio instead of one endless row."""
+def _serpentine_plan(total_ranks: int, col_extent: list[float], rank_cross_extent: list[float],
+                      rank_gap: float) -> tuple[int, int]:
+    """How a long workflow's ranks fold into rows, "à la spartito" (like a
+    musical score): up to SERPENTINE_RANK_THRESHOLD ranks stay a single row
+    (unchanged from before); beyond that, the smallest number of rows (never
+    more than MAX_WRAP_FOLDS) whose resulting width/height ratio drops under
+    WRAP_ASPECT_TARGET — measured on the actual per-rank extents so the
+    choice reflects the real drawing, not just a rank count. Row 0 reads left
+    to right, row 1 right to left, row 2 left to right again, and so on (see
+    _rank_layout for how the alternating direction is applied)."""
     if total_ranks <= SERPENTINE_RANK_THRESHOLD:
         return 1, total_ranks
-    num_rows = 2 if total_ranks <= 20 else 3
-    ranks_per_row = -(-total_ranks // num_rows)  # ceil division
-    return num_rows, ranks_per_row
+
+    def geometry(num_rows: int) -> tuple[float, float, int]:
+        ranks_per_row = -(-total_ranks // num_rows)  # ceil division
+        row_w = [0.0] * num_rows
+        row_h = [0.0] * num_rows
+        for r in range(total_ranks):
+            rw = min(r // ranks_per_row, num_rows - 1)
+            row_w[rw] += col_extent[r] + rank_gap
+            row_h[rw] = max(row_h[rw], rank_cross_extent[r])
+        width = (max(row_w) - rank_gap if row_w else 0.0) + MARGIN * 2
+        height = sum(row_h) + ROW_GAP * (num_rows - 1) + MARGIN * 2
+        return width, height, ranks_per_row
+
+    best = (2, -(-total_ranks // 2))
+    for num_rows in range(2, MAX_WRAP_FOLDS + 1):
+        width, height, ranks_per_row = geometry(num_rows)
+        best = (num_rows, ranks_per_row)
+        if height > 0 and width / height < WRAP_ASPECT_TARGET:
+            break
+    return best
 
 
 def _rank_layout(diagram: dict, workflow: bool):
@@ -373,10 +424,6 @@ def _rank_layout(diagram: dict, workflow: bool):
     sizes = {nid: _node_size(node_by_id[nid]) for nid in node_ids}
 
     rank_gap = RANK_GAP_WORKFLOW if workflow else RANK_GAP
-    # architecture/dataflow diagrams never fold into rows — only long
-    # workflows do (see _serpentine_plan).
-    num_rows, ranks_per_row = _serpentine_plan(total_ranks) if workflow else (1, total_ranks)
-    row_of = {r: min(r // ranks_per_row, num_rows - 1) for r in range(total_ranks)}
 
     col_extent = []  # width (rank-axis extent), per rank
     for r in range(total_ranks):
@@ -405,6 +452,15 @@ def _rank_layout(diagram: dict, workflow: bool):
             node_local_cross[nid] = cross
             cross += h + NODE_GAP
         rank_cross_extent.append(cross - NODE_GAP if row else 0.0)
+
+    # architecture/dataflow diagrams never fold into rows — only long
+    # workflows do (see _serpentine_plan), and the choice now looks at the
+    # actual per-rank extents computed just above.
+    num_rows, ranks_per_row = (
+        _serpentine_plan(total_ranks, col_extent, rank_cross_extent, rank_gap)
+        if workflow else (1, total_ranks)
+    )
+    row_of = {r: min(r // ranks_per_row, num_rows - 1) for r in range(total_ranks)}
 
     row_height = [0.0] * num_rows
     for r in range(total_ranks):
@@ -658,20 +714,66 @@ def _top_level_groups(groups: list[dict]) -> list[dict]:
 _OTHER_LANE = "__other__"
 
 
+def _lane_system_plan(total_ranks: int, col_width: list[float], system_h: float) -> tuple[int, int]:
+    """How a swimlane workflow's ranks fold into stacked "systems" — "à la
+    spartito" (like a musical score): every system repeats the full lane
+    stack (with labels — see _lane_layout) and picks up the ranks where the
+    previous system left off. Picks the smallest number of systems (never
+    more than MAX_WRAP_FOLDS) whose resulting width/height ratio drops under
+    WRAP_ASPECT_TARGET; a single system (the common case, short lanes) lays
+    out exactly as before. `system_h` is one system's own full vertical
+    extent (top margin + the lane stack + bottom margin), constant across
+    every system since the lane stack is always the same shape."""
+    if total_ranks <= 0:
+        return 1, max(total_ranks, 1)
+
+    def system_width(num_systems: int, ranks_per_system: int) -> float:
+        widest = 0.0
+        for s in range(num_systems):
+            r0, r1 = s * ranks_per_system, min(total_ranks, (s + 1) * ranks_per_system)
+            if r0 >= r1:
+                continue
+            cols = col_width[r0:r1]
+            widest = max(widest, sum(cols) + LANE_RANK_GAP * max(0, len(cols) - 1))
+        extra = STUB_RESERVE if num_systems > 1 else 0.0
+        return MARGIN + LANE_BAND_W + widest + MARGIN + extra
+
+    best = (1, total_ranks)
+    for num_systems in range(1, MAX_WRAP_FOLDS + 1):
+        ranks_per_system = -(-total_ranks // num_systems)
+        width = system_width(num_systems, ranks_per_system)
+        height = num_systems * system_h + (num_systems - 1) * SYSTEM_GAP
+        best = (num_systems, ranks_per_system)
+        if height > 0 and width / height < WRAP_ASPECT_TARGET:
+            break
+    return best
+
+
 def _lane_layout(diagram: dict):
     """Left-to-right rank layout with one full-width horizontal lane per
     top-level group: rank = longest-path distance from a source (same
-    DAG/cycle-breaking as _rank_layout), x = column for that rank (shared
-    across every lane, so the columns line up), y = centre of the node's
-    lane. Nodes sharing a rank AND a lane stack vertically inside it; the
-    lane grows to fit them (minimum LANE_MIN_H). Nested (child) groups
-    flatten into their top-level ancestor's lane; a node with no resolvable
-    group falls into a trailing "Other" lane, added only when at least one
-    such node exists. There is no serpentine folding in lane mode. A node
-    with a manual pos is placed exactly there, outside any lane's control.
+    DAG/cycle-breaking as _rank_layout), x = column for that rank within its
+    own "system" (see below), y = centre of the node's lane. Nodes sharing a
+    rank AND a lane stack vertically inside it; the lane grows to fit them
+    (minimum LANE_MIN_H). Nested (child) groups flatten into their top-level
+    ancestor's lane; a node with no resolvable group falls into a trailing
+    "Other" lane, added only when at least one such node exists. A node with
+    a manual pos is placed exactly there, outside any lane's control.
 
-    Returns (node_boxes, lanes, ranks, valid_edges, width, height) where
-    lanes is [(label, y, height), ...] in the drawn (top to bottom) order.
+    A lane diagram whose ranks would otherwise run too wide folds into
+    stacked "systems", like a musical score (see _lane_system_plan): each
+    system is a full, self-contained copy of the lane stack (with labels),
+    picking up the ranks where the previous system stopped. Every edge whose
+    two ends land in different systems is left out of the normal edge list
+    the caller draws — the caller (see _diagram_svg / _render_system_stubs)
+    instead draws it as a pair of numbered off-page BPMN-style stubs.
+
+    Returns (node_boxes, lanes, ranks, valid_edges, width, height, system_meta).
+    lanes is [(label, y, height), ...] in the drawn (top to bottom) order,
+    one full set per system. system_meta is a dict with:
+      - "rank_system": {rank: system_index}
+      - "left_x" / "right_x": x anchors for entry/exit off-page stubs
+    used by the renderer to tell a same-system edge from a cross-system one.
     """
     nodes = diagram["nodes"]
     node_by_id = {n["id"]: n for n in nodes}
@@ -712,15 +814,12 @@ def _lane_layout(diagram: dict):
         by_rank[ranks[nid]].append(nid)
     col_width = [max((sizes[nid][0] for nid in by_rank.get(r, [])), default=_DEFAULT_SIZE[0])
                  for r in range(total_ranks)]
-    col_x = [0.0] * total_ranks
-    acc = float(MARGIN + LANE_BAND_W)
-    for r in range(total_ranks):
-        col_x[r] = acc
-        acc += col_width[r] + LANE_RANK_GAP
 
     # How tall each lane must be: the tallest per-rank node stack it has to
     # hold (a lane can hold several nodes at the same rank; they stack
-    # vertically and the lane grows to fit).
+    # vertically and the lane grows to fit). Computed once, over every rank —
+    # every system repeats the exact same lane stack, like a musical score's
+    # staff height never changes from one system to the next.
     by_lane_rank: dict[tuple[str, int], list[str]] = {}
     for nid in node_ids:
         by_lane_rank.setdefault((node_lane[nid], ranks[nid]), []).append(nid)
@@ -737,44 +836,89 @@ def _lane_layout(diagram: dict):
         lane_content_h[lane] = tallest
 
     lane_height = {lane: max(LANE_MIN_H, lane_content_h[lane] + LANE_PAD_V * 2) for lane in lane_order}
+    lane_stack_h = sum(lane_height[lane] for lane in lane_order) if lane_order else 0.0
+    system_h = MARGIN + lane_stack_h + MARGIN
 
-    lane_y0: dict[str, float] = {}
+    num_systems, ranks_per_system = (
+        _lane_system_plan(total_ranks, col_width, system_h) if total_ranks else (1, 1)
+    )
+    rank_system = {r: min(r // ranks_per_system, num_systems - 1) for r in range(total_ranks)}
+
+    # Rank-axis columns, reset per system: each system is its own fresh copy
+    # of the grid, starting at the same x every time (MARGIN + LANE_BAND_W),
+    # so a wide workflow reads as S repeated staffs rather than one endless
+    # row squeezed to fit.
+    system_ranks: dict[int, list[int]] = {}
+    for r in range(total_ranks):
+        system_ranks.setdefault(rank_system[r], []).append(r)
+    col_x = [0.0] * total_ranks
+    for s, rs in system_ranks.items():
+        acc = float(MARGIN + LANE_BAND_W)
+        for r in rs:
+            col_x[r] = acc
+            acc += col_width[r] + LANE_RANK_GAP
+
+    # y offset of each system's own top: systems stack vertically with
+    # SYSTEM_GAP of daylight between them, exactly like the gap between two
+    # systems on a printed score.
+    system_y0 = [s * (system_h + SYSTEM_GAP) for s in range(num_systems)]
+
+    lane_y0_local: dict[str, float] = {}
     acc = float(MARGIN)
     for lane in lane_order:
-        lane_y0[lane] = acc
+        lane_y0_local[lane] = acc
         acc += lane_height[lane]
 
     node_boxes: dict[str, tuple[float, float, float, float]] = {}
     for lane in lane_order:
-        lane_center = lane_y0[lane] + lane_height[lane] / 2
-        for r in range(total_ranks):
-            row = by_lane_rank.get((lane, r), [])
-            if not row:
-                continue
-            total_h = sum(sizes[nid][1] for nid in row) + NODE_GAP * (len(row) - 1)
-            y = lane_center - total_h / 2
-            for nid in row:
-                w, h = sizes[nid]
-                node_boxes[nid] = (col_x[r], y, w, h)
-                y += h + NODE_GAP
+        for s in range(num_systems):
+            lane_center = system_y0[s] + lane_y0_local[lane] + lane_height[lane] / 2
+            for r in system_ranks.get(s, []):
+                row = by_lane_rank.get((lane, r), [])
+                if not row:
+                    continue
+                total_h = sum(sizes[nid][1] for nid in row) + NODE_GAP * (len(row) - 1)
+                y = lane_center - total_h / 2
+                for nid in row:
+                    w, h = sizes[nid]
+                    node_boxes[nid] = (col_x[r], y, w, h)
+                    y += h + NODE_GAP
 
     # Manual positions win outright, exactly like the rank layout: the lane
-    # never re-cages a node the user dragged out of it.
+    # (and the system it belongs to) never re-cages a node the user dragged
+    # out of it — pos wins, full stop, whatever system its rank would have
+    # put it in.
     for n in nodes:
         pos = n.get("pos")
         if pos:
             w, h = sizes[n["id"]]
             node_boxes[n["id"]] = (float(pos["x"]), float(pos["y"]), w, h)
 
-    lanes = [(lane_label.get(lane, "Other"), lane_y0[lane], lane_height[lane]) for lane in lane_order]
+    lanes = [
+        (lane_label.get(lane, "Other"), system_y0[s] + lane_y0_local[lane], lane_height[lane])
+        for s in range(num_systems)
+        for lane in lane_order
+    ]
+
+    grid_right = (max(col_x[r] + col_width[r] for r in range(total_ranks))
+                  if total_ranks else float(MARGIN + LANE_BAND_W))
+    left_x = float(LANE_BAND_W)
+    right_x = grid_right + STUB_LEN if num_systems > 1 else grid_right
+
+    content_right = right_x + (STUB_R + 16 if num_systems > 1 else 0.0) + MARGIN
+    content_bottom = (system_y0[-1] + system_h) if num_systems else 300.0
 
     if node_boxes:
-        width = max(x + w for x, y, w, h in node_boxes.values()) + MARGIN
+        width = max(content_right, max(x + w for x, y, w, h in node_boxes.values()) + MARGIN)
+        height = max(content_bottom, max(y + h for x, y, w, h in node_boxes.values()) + MARGIN)
     else:
-        width = MARGIN + LANE_BAND_W + MARGIN
-    height = (lane_y0[lane_order[-1]] + lane_height[lane_order[-1]] + MARGIN) if lane_order else 300
+        width = content_right
+        height = content_bottom
 
-    return node_boxes, lanes, ranks, valid_edges, width, height
+    system_meta = {"rank_system": rank_system, "num_systems": num_systems,
+                   "left_x": left_x, "right_x": right_x}
+
+    return node_boxes, lanes, ranks, valid_edges, width, height, system_meta
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -861,23 +1005,34 @@ def _render_group(group: dict, x: float, y: float, w: float, h: float) -> str:
             f'<text class="group-label" x="{x + 12}" y="{y + 18}">{label}</text></g>')
 
 
-def _render_lanes(lanes: list[tuple[str, float, float]], width: float) -> str:
+def _render_lanes(lanes: list[tuple[str, float, float]], width: float, lanes_per_system: int = 0) -> str:
     """One full-width horizontal band per swimlane, alternating a very light
     background via a CSS class (never an inline colour), a border between
     consecutive lanes, a horizontal label in the left LANE_BAND_W band, and a
-    single vertical rule separating that label band from the diagram area for
-    the whole stack of lanes."""
+    vertical rule separating that label band from the diagram area.
+    `lanes` may hold several systems' worth of bands back to back (see
+    _lane_layout: each system repeats the full lane stack with its own
+    labels); `lanes_per_system` — the number of lane bands one system holds
+    — is what tells this function where one system's stack ends and the
+    next begins, so the alternating shading and the vertical label-band rule
+    each restart per system instead of running through the SYSTEM_GAP
+    between them."""
     if not lanes:
         return ""
+    per_system = lanes_per_system or len(lanes)
     parts = []
     for i, (label, y, h) in enumerate(lanes):
-        alt_cls = " lane-band-alt" if i % 2 == 1 else ""
+        alt_cls = " lane-band-alt" if (i % per_system) % 2 == 1 else ""
         parts.append(f'<rect class="lane-band{alt_cls}" x="0" y="{y}" width="{width}" height="{h}"/>')
         parts.append(f'<line class="lane-border" x1="0" y1="{y}" x2="{width}" y2="{y}"/>')
         parts.append(f'<text class="lane-label" x="16" y="{y + h / 2 + 4}">{_esc(label)}</text>')
-    top = lanes[0][1]
-    bottom = lanes[-1][1] + lanes[-1][2]
-    parts.append(f'<line class="lane-border" x1="{LANE_BAND_W}" y1="{top}" x2="{LANE_BAND_W}" y2="{bottom}"/>')
+    for s in range(0, len(lanes), per_system):
+        system_lanes = lanes[s:s + per_system]
+        if not system_lanes:
+            continue
+        top = system_lanes[0][1]
+        bottom = system_lanes[-1][1] + system_lanes[-1][2]
+        parts.append(f'<line class="lane-border" x1="{LANE_BAND_W}" y1="{top}" x2="{LANE_BAND_W}" y2="{bottom}"/>')
     return "".join(parts)
 
 
@@ -941,6 +1096,72 @@ def _render_edges_rank(valid_edges: list[dict], node_boxes: dict, ranks: dict) -
     return "".join(parts)
 
 
+def _split_cross_system_edges(valid_edges: list[dict], ranks: dict, system_meta: dict) -> tuple[list, list]:
+    """Splits a swimlane's edges into (same-system, cross-system): an edge
+    whose two ends land in different "systems" (see _lane_layout) can't be
+    drawn as one curve without cutting across the SYSTEM_GAP and every lane
+    label band in between — it is drawn as a pair of off-page stubs instead
+    (see _render_system_stubs). With a single system every edge is
+    same-system, so this is a no-op and the diagram renders exactly as
+    before."""
+    rank_system = system_meta["rank_system"]
+    if system_meta.get("num_systems", 1) <= 1:
+        return valid_edges, []
+    same, cross = [], []
+    for e in valid_edges:
+        u, v = e["from"], e["to"]
+        su = rank_system.get(ranks.get(u, 0), 0)
+        sv = rank_system.get(ranks.get(v, 0), 0)
+        (cross if su != sv else same).append(e)
+    return same, cross
+
+
+def _off_page_stub(x1: float, y1: float, x2: float, y2: float, num: int, title_text: str) -> str:
+    """One half of a cross-system edge: a short straight connector from
+    (x1, y1) to (x2, y2), the far end landing in a small numbered circle —
+    an off-page (BPMN-style) connector. The matching other half, drawn
+    elsewhere, carries the same number; the <title> names the node at the
+    OTHER end (the one this stub doesn't touch), so a reader hovering either
+    half learns where the flow actually goes."""
+    return (
+        f'<g class="off-page-stub">'
+        f'<path class="edge" d="M {x1} {y1} L {x2} {y2}" marker-end="url(#arrow)"/>'
+        f'<circle class="stub-circle" cx="{x2}" cy="{y2}" r="{STUB_R}"/>'
+        f'<text class="stub-num" x="{x2}" y="{y2 + 4}" text-anchor="middle">{num}</text>'
+        f'<title>{_esc(title_text)}</title>'
+        f'</g>'
+    )
+
+
+def _render_system_stubs(cross_edges: list[dict], node_boxes: dict, node_by_id: dict,
+                          system_meta: dict) -> str:
+    """Renders every cross-system edge (see _split_cross_system_edges) as a
+    pair of numbered off-page stubs instead of a single curve spanning the
+    whole figure: one stub exits the right border of the source's own
+    system next to the source node, the other enters the left border of the
+    target's system next to the target node, both sharing the same number —
+    the exact technique used for the ordinary "continue on the next system"
+    case AND for any other cross-system jump (a back-edge, a long skip),
+    so nothing ever has to bow across several stacked systems."""
+    if not cross_edges:
+        return ""
+    left_x, right_x = system_meta["left_x"], system_meta["right_x"]
+    parts = []
+    for i, e in enumerate(cross_edges, start=1):
+        u, v = e["from"], e["to"]
+        if u not in node_boxes or v not in node_boxes:
+            continue
+        ux, uy, uw, uh = node_boxes[u]
+        vx, vy, vw, vh = node_boxes[v]
+        u_label = str(node_by_id.get(u, {}).get("label", u))
+        v_label = str(node_by_id.get(v, {}).get("label", v))
+        exit_y = uy + uh / 2
+        entry_y = vy + vh / 2
+        parts.append(_off_page_stub(ux + uw, exit_y, right_x, exit_y, i, f"to: {v_label}"))
+        parts.append(_off_page_stub(left_x, entry_y, vx, entry_y, i, f"from: {u_label}"))
+    return "".join(parts)
+
+
 def _render_sequence(diagram: dict) -> tuple[str, int, int]:
     positions, messages, width, height, box_w, box_h, top = _sequence_layout(diagram)
     parts = []
@@ -985,9 +1206,14 @@ def _diagram_svg(diagram: dict) -> str:
     if kind == "sequence":
         body, width, height = _render_sequence(diagram)
     elif _has_lanes(diagram):
-        node_boxes, lanes, ranks, valid_edges, width, height = _lane_layout(diagram)
-        parts = [_render_lanes(lanes, width)]
-        parts.append(_render_edges_rank(valid_edges, node_boxes, ranks))
+        node_boxes, lanes, ranks, valid_edges, width, height, system_meta = _lane_layout(diagram)
+        node_by_id = {n["id"]: n for n in diagram["nodes"]}
+        num_systems = system_meta.get("num_systems", 1)
+        lanes_per_system = len(lanes) // num_systems if num_systems else len(lanes)
+        same_edges, cross_edges = _split_cross_system_edges(valid_edges, ranks, system_meta)
+        parts = [_render_lanes(lanes, width, lanes_per_system)]
+        parts.append(_render_edges_rank(same_edges, node_boxes, ranks))
+        parts.append(_render_system_stubs(cross_edges, node_boxes, node_by_id, system_meta))
         # Nodes are drawn last: whatever an edge's curve passes near, the node
         # box on top of it is what stays readable.
         for n in diagram["nodes"]:
@@ -1108,6 +1334,8 @@ def _generic_svg_rules() -> str:
         ".node-label{font:600 12.5px system-ui,Arial,sans-serif;}"
         ".node-desc{font:10px system-ui,Arial,sans-serif;}"
         ".lifeline{stroke:var(--border);stroke-width:1.4;stroke-dasharray:4 4;}"
+        ".stub-circle{fill:var(--canvas-bg);stroke:var(--edge-color);stroke-width:1.6;}"
+        ".stub-num{font:700 10px system-ui,Arial,sans-serif;fill:var(--edge-color);}"
     )
 
 

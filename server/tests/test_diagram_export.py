@@ -389,17 +389,22 @@ def _long_label_diagram() -> dict:
 def test_long_linear_workflow_stays_a_sane_aspect_ratio_with_no_overlaps(patch_doc):
     """Workflows lay out left-to-right now (never top-to-bottom): a near-linear
     workflow of 16 ranks used to blow out to 430x4752px under the old TB
-    layout. It must now fold into a row-serpentine (2 rows here) that keeps
-    the canvas contained in width (well under what one single, unfolded row
-    of 16 ranks would need, north of ~4000px) while staying a reasonable
-    height (more than one row's worth, comfortably under a couple of
-    thousand px), with zero overlapping (non-nested) boxes."""
+    layout. It must now fold into a row-serpentine that keeps the canvas
+    contained in width (well under what one single, unfolded row of 16 ranks
+    would need, north of ~4000px) while staying a reasonable height (more
+    than one row's worth, comfortably under a couple of thousand px), with
+    zero overlapping (non-nested) boxes, and — per the same "à la spartito"
+    wrapping contract the swimlane fold uses (see _lane_system_plan) — a
+    final width/height ratio under 2.2 (this fixture used to sit at ~2.5,
+    just outside that bound, before the row count became ratio-driven; see
+    _serpentine_plan)."""
     patch_doc(_full_doc([_long_linear_workflow()]))
     out = diagram_html("t")
     svg = re.search(r'<svg[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"', out)
     width, height = float(svg.group(1)), float(svg.group(2))
     assert width < 2500, f"workflow canvas too wide: {width}"
     assert 400 <= height < 1200, f"workflow canvas height not a sane row-serpentine: {height}"
+    assert width / height < 2.2, f"workflow canvas aspect ratio too wide: {width}x{height}"
     boxes = _boxes_from_svg(out)
     assert len(boxes) >= 18  # every node landed a box
     assert _non_nested_overlaps(boxes) == []
@@ -497,42 +502,57 @@ def test_workflow_without_groups_keeps_the_plain_serpentine_layout(patch_doc):
 
 
 def test_three_lanes_in_group_order_and_every_node_inside_its_own_lane(patch_doc):
-    """(a) 3 groups (reception/clinical/system) and 10 nodes: 3 lane bands in
-    the order groups[] declares them, each node's box sitting within the
-    y-range of its own group's lane, and every lane label present."""
+    """(a) 3 groups (reception/clinical/system) and 10 nodes: 3 lane bands per
+    system in the order groups[] declares them, each node's box sitting within
+    the y-range of its OWN system's copy of its group's lane (this fixture's
+    natural, unfolded aspect ratio is already above the ~1.9 target — see
+    test_wide_lane_workflow_folds_into_stacked_systems for the dedicated,
+    longer fixture — so it may legitimately land on more than one system;
+    this test only cares that every node still lands inside its own lane),
+    and every lane label present."""
     diagram = _lane_workflow_diagram()
-    node_boxes, lanes, ranks, valid_edges, width, height = diagram_export._lane_layout(diagram)
+    node_boxes, lanes, ranks, valid_edges, width, height, system_meta = diagram_export._lane_layout(diagram)
+    num_systems = system_meta["num_systems"]
+    lanes_per_system = len(lanes) // num_systems
+    group_order = ["Reception", "Clinical", "System"]
 
-    assert [label for label, _y, _h in lanes] == ["Reception", "Clinical", "System"]
+    assert [label for label, _y, _h in lanes[:lanes_per_system]] == group_order
 
     node_by_id = {n["id"]: n for n in diagram["nodes"]}
-    lane_range = {label: (y, y + h) for label, y, h in lanes}
     group_label = {"reception": "Reception", "clinical": "Clinical", "system": "System"}
+    rank_system = system_meta["rank_system"]
     for nid, (x, y, w, h) in node_boxes.items():
         grp = node_by_id[nid]["group"]
-        lo, hi = lane_range[group_label[grp]]
-        assert lo - 0.01 <= y and y + h <= hi + 0.01, f"{nid} escaped its {grp} lane"
+        sys_idx = rank_system[ranks[nid]]
+        lane_idx = group_order.index(group_label[grp])
+        label, lane_y, lane_h = lanes[sys_idx * lanes_per_system + lane_idx]
+        assert label == group_label[grp]
+        assert lane_y - 0.01 <= y and y + h <= lane_y + lane_h + 0.01, f"{nid} escaped its {grp} lane"
 
     patch_doc(_full_doc([diagram]))
     out = diagram_html("t")
-    assert out.count('class="lane-band"') + out.count('class="lane-band lane-band-alt"') == 3
-    for label in ("Reception", "Clinical", "System"):
+    assert out.count('class="lane-band"') + out.count('class="lane-band lane-band-alt"') == 3 * num_systems
+    for label in group_order:
         assert label in out
-    # order in the document follows groups[] order
+    # order within the first system's stack follows groups[] order
     assert out.index("Reception") < out.index("Clinical") < out.index("System")
 
 
 def test_orphan_node_without_group_gets_a_trailing_other_lane(patch_doc):
     """(b) A node with no (resolvable) group falls into a trailing "Other"
-    lane, added only because such a node exists."""
+    lane, added only because such a node exists — in every system it lands
+    in, since each system repeats the full lane stack."""
     diagram = _lane_workflow_diagram()
     diagram["nodes"].append({"id": "audit", "label": "External audit log", "class": "external"})
     diagram["edges"].append({"from": "record", "to": "audit"})
 
-    node_boxes, lanes, ranks, valid_edges, width, height = diagram_export._lane_layout(diagram)
-    assert [label for label, _y, _h in lanes][-1] == "Other"
+    node_boxes, lanes, ranks, valid_edges, width, height, system_meta = diagram_export._lane_layout(diagram)
+    num_systems = system_meta["num_systems"]
+    lanes_per_system = len(lanes) // num_systems
+    assert [label for label, _y, _h in lanes[:lanes_per_system]][-1] == "Other"
 
-    other_label, other_y, other_h = lanes[-1]
+    audit_system = system_meta["rank_system"][ranks["audit"]]
+    other_label, other_y, other_h = lanes[audit_system * lanes_per_system + lanes_per_system - 1]
     ox, oy, ow, oh = node_boxes["audit"]
     assert other_y - 0.01 <= oy and oy + oh <= other_y + other_h + 0.01
 
@@ -564,6 +584,127 @@ def test_manual_pos_escapes_its_lane(patch_doc):
     out = diagram_html("t")
     assert 'x="5.0"' in out
     assert 'y="5.0"' in out
+
+
+# --- swimlane "systems": wrapping à la spartito for a wide lane workflow ------
+# regression fixture for the measured larkfield-vet defect (a 3-lane workflow
+# whose ranks ran to ~4490x710px, a 6-9:1 aspect ratio) — see _lane_system_plan
+# / _render_system_stubs.
+
+def _wide_lane_workflow_diagram() -> dict:
+    """14 ranks, 3 lanes (reception/clinical/system), 14 nodes, a mostly
+    linear chain plus one long back-edge (n10 -> n2) that jumps from one
+    system back into an earlier one. This diagram's un-folded aspect ratio
+    is well above the ~1.9 target (see _lane_system_plan), so it MUST land
+    on 2+ stacked systems; the back-edge is exactly the kind of arc the
+    off-page stub connectors exist for (see _render_system_stubs)."""
+    groups_cycle = ["reception", "clinical", "system"]
+    nodes = [{"id": "start", "label": "Patient arrives", "class": "start", "group": "reception"}]
+    for i in range(1, 13):
+        nodes.append({"id": f"n{i}", "label": f"Step {i}", "class": "process",
+                       "group": groups_cycle[i % 3]})
+    nodes.append({"id": "end", "label": "Discharge", "class": "end", "group": "reception"})
+    ids = [n["id"] for n in nodes]
+    edges = [{"from": a, "to": b} for a, b in zip(ids, ids[1:])]
+    edges.append({"from": "n10", "to": "n2", "label": "recheck"})  # back edge, crosses systems
+    return {
+        "id": "wf-lanes-wide", "kind": "workflow", "title": "Wide lane workflow",
+        "groups": [
+            {"id": "reception", "label": "Reception"},
+            {"id": "clinical", "label": "Clinical"},
+            {"id": "system", "label": "System"},
+        ],
+        "nodes": nodes, "edges": edges,
+    }
+
+
+def test_wide_lane_workflow_folds_into_stacked_systems_with_no_overlaps(patch_doc):
+    """(a) ~14 ranks, 3 lanes: the diagram must fold into 2 or more stacked
+    "systems" (each repeating the full lane stack with its own labels, so
+    every lane label appears once per system), settle the FINAL canvas ratio
+    between 1.0 and 2.0 (was 6-9:1 before this fix), and leave zero
+    overlapping (non-nested) boxes — lane bands legitimately "contain" the
+    nodes inside them, which the nesting-aware helper already accounts for."""
+    diagram = _wide_lane_workflow_diagram()
+    node_boxes, lanes, ranks, valid_edges, width, height, system_meta = diagram_export._lane_layout(diagram)
+    num_systems = system_meta["num_systems"]
+    assert num_systems >= 2
+
+    ratio = width / height
+    assert 1.0 <= ratio <= 2.0, f"lane canvas not a sane system-fold: {width}x{height} ({ratio:.2f})"
+
+    patch_doc(_full_doc([diagram]))
+    out = diagram_html("t")
+    lane_label_texts = re.findall(r'<text class="lane-label"[^>]*>([^<]*)</text>', out)
+    assert lane_label_texts.count("Reception") == num_systems
+    assert lane_label_texts.count("Clinical") == num_systems
+    assert lane_label_texts.count("System") == num_systems
+
+    boxes = _boxes_from_svg(out)
+    assert len(boxes) >= 14  # every node landed a box (plus lane bands)
+    assert _non_nested_overlaps(boxes) == []
+
+
+def test_cross_system_edge_becomes_a_matched_pair_of_numbered_stubs(patch_doc):
+    """(b) The back-edge n10 -> n2 crosses from one system into an earlier
+    one: it must be drawn as two off-page BPMN-style stubs sharing the same
+    numbered circle instead of one curve spanning every system in between
+    (see _render_system_stubs). Each stub's <title> names the node at the
+    OTHER end, so a reader hovering either half learns where the flow goes."""
+    diagram = _wide_lane_workflow_diagram()
+    node_boxes, lanes, ranks, valid_edges, width, height, system_meta = diagram_export._lane_layout(diagram)
+    assert system_meta["rank_system"][ranks["n10"]] != system_meta["rank_system"][ranks["n2"]]
+
+    patch_doc(_full_doc([diagram]))
+    out = diagram_html("t")
+
+    stub_nums = re.findall(r'<text class="stub-num"[^>]*>(\d+)</text>', out)
+    assert stub_nums, "no off-page stub rendered for a cross-system edge"
+    counts = {n: stub_nums.count(n) for n in set(stub_nums)}
+    assert any(c == 2 for c in counts.values()), "no stub number used by exactly a matched pair"
+
+    stub_groups = re.findall(r'<g class="off-page-stub">.*?</g>', out, re.S)
+    titles = [re.search(r'<title>([^<]*)</title>', g).group(1) for g in stub_groups]
+    assert any("Step 2" in t for t in titles)
+    assert any("Step 10" in t for t in titles)
+
+
+def _short_lane_workflow_diagram() -> dict:
+    """3 ranks, 3 lanes: comfortably under the ~1.9 aspect-ratio target even
+    un-folded (see _lane_system_plan) — the "short lanes" case that must
+    stay a single system, output unchanged."""
+    return {
+        "id": "wf-lanes-short", "kind": "workflow", "title": "Short lane workflow",
+        "groups": [
+            {"id": "reception", "label": "Reception"},
+            {"id": "clinical", "label": "Clinical"},
+            {"id": "system", "label": "System"},
+        ],
+        "nodes": [
+            {"id": "start", "label": "Patient arrives", "class": "start", "group": "reception"},
+            {"id": "triage", "label": "Triage", "class": "process", "group": "clinical"},
+            {"id": "record", "label": "Update record", "class": "process", "group": "system"},
+        ],
+        "edges": [
+            {"from": "start", "to": "triage"},
+            {"from": "triage", "to": "record"},
+        ],
+    }
+
+
+def test_short_lane_workflow_stays_a_single_system(patch_doc):
+    """(c) A short swimlane workflow already sits under the ~1.9 aspect-ratio
+    target un-folded, so it must land on exactly one system — the plain
+    single-stack lane output, unchanged, with no off-page stub connectors
+    anywhere (nothing crosses a system boundary because there is only one)."""
+    diagram = _short_lane_workflow_diagram()
+    node_boxes, lanes, ranks, valid_edges, width, height, system_meta = diagram_export._lane_layout(diagram)
+    assert system_meta["num_systems"] == 1
+    assert len(lanes) == 3
+
+    patch_doc(_full_doc([diagram]))
+    out = diagram_html("t")
+    assert '<circle class="stub-circle"' not in out
 
 
 def test_sequence_message_label_wider_than_the_lifeline_gap_is_ellipsized(patch_doc):
