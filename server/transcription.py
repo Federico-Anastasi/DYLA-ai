@@ -1,4 +1,4 @@
-"""Local speech transcription (faster-whisper on CPU).
+"""Local speech transcription (faster-whisper, on the GPU when one is available).
 
 Why local and not a service: dictated notes and meetings name clients, projects and
 people. Sending that audio off to an external service is not a call we get to make on
@@ -24,8 +24,24 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-COMPUTE_TYPE = "int8"  # quantized: on CPU it is the only sensible setting
+CPU_COMPUTE_TYPE = "int8"      # quantized: on CPU it is the only sensible setting
+GPU_COMPUTE_TYPE = "float16"   # what large-v3 was trained around; fast and accurate on a GPU
 THREADS = 8
+
+
+def _pick_device() -> tuple[str, str]:
+    """(device, compute_type). Prefer a CUDA GPU when ctranslate2 can see one — large-v3 on a
+    GPU is roughly an order of magnitude faster than on CPU, which is what makes transcribing a
+    meeting-length recording bearable. Falls back to CPU when there is no GPU; a GPU that is
+    present but unusable (missing cuDNN, or no VRAM left because the LLM engine holds it) is
+    caught at load time in _load, which then retries on CPU."""
+    try:
+        import ctranslate2
+        if ctranslate2.get_cuda_device_count() > 0:
+            return "cuda", GPU_COMPUTE_TYPE
+    except Exception:
+        pass
+    return "cpu", CPU_COMPUTE_TYPE
 
 
 @dataclass(frozen=True)
@@ -76,14 +92,23 @@ def _load(profile_name: str = DEFAULT_PROFILE):
         except ImportError as e:
             raise TranscriptionUnavailable(
                 "faster-whisper is not installed: pip install -r requirements.txt") from e
+        device, compute_type = _pick_device()
         try:
-            model = WhisperModel(p.model, device="cpu",
-                                 compute_type=COMPUTE_TYPE, cpu_threads=THREADS)
+            model = WhisperModel(p.model, device=device,
+                                 compute_type=compute_type, cpu_threads=THREADS)
         except Exception as e:
-            # Typically: first run with no network, so the model does not download.
-            # large-v3 weighs ~3 GB: the first meeting pays for the download.
-            raise TranscriptionUnavailable(
-                f"model '{p.model}' unavailable: {e}") from e
+            # A GPU load can fail where CPU still works: missing cuDNN, or no VRAM left because
+            # the LLM engine is holding the cards. Retry on CPU rather than fail the transcription.
+            if device == "cuda":
+                try:
+                    model = WhisperModel(p.model, device="cpu",
+                                         compute_type=CPU_COMPUTE_TYPE, cpu_threads=THREADS)
+                except Exception as e2:
+                    raise TranscriptionUnavailable(f"model '{p.model}' unavailable: {e2}") from e2
+            else:
+                # Typically: first run with no network, so the model does not download.
+                # large-v3 weighs ~3 GB: the first meeting pays for the download.
+                raise TranscriptionUnavailable(f"model '{p.model}' unavailable: {e}") from e
         _models[p.model] = model
         return model
 
