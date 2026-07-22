@@ -2033,9 +2033,9 @@ export default function DiagramView({
             </svg>
 
             <div className="er-controls">
-              <button className="mini-btn" onClick={zoomBtn(1 / 1.25)}>+</button>
-              <button className="mini-btn" onClick={zoomBtn(1.25)}>−</button>
-              <button className="mini-btn" onClick={resetView}>reset</button>
+              <button className="mini-btn" title="zoom in" onClick={zoomBtn(1 / 1.25)}>+</button>
+              <button className="mini-btn" title="zoom out" onClick={zoomBtn(1.25)}>−</button>
+              <button className="mini-btn" title="fit the whole diagram in view" onClick={resetView}>fit</button>
             </div>
 
             {openMenu?.kind === "group-assign" && (() => {

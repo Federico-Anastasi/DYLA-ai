@@ -1155,7 +1155,11 @@ table.doc-table tr.dev-task-row td { background: var(--panel-2); font-weight: 40
   border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 11.5px;
 }
 
-.dg-canvas-wrap { position: relative; flex: 1; min-width: 0; }
+/* min-height:0 + overflow:hidden are load-bearing: without them the inner <svg> (width:100%,
+   viewBox-driven) forces the wrap to its own intrinsic height — a tall flow makes the whole
+   panel scroll instead of the SVG scaling to fit. With them, flex:1 caps the wrap at the space
+   available and the SVG's preserveAspectRatio letterboxes the diagram into view. */
+.dg-canvas-wrap { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .dg-wrap { display: block; width: 100%; height: 100%; overflow: hidden; cursor: grab; background: var(--bg); }
 .dg-wrap.panning { cursor: grabbing; }
 
