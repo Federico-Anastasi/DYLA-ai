@@ -160,6 +160,16 @@ CLASSES = ["actor", "frontend", "backend", "service", "database", "storage", "qu
            "external", "security", "start", "end", "process", "decision", "document",
            "manual"]
 
+# A node's semantic colour used to be its border, which read heavy and dated (see the
+# viewer's own NodeShape in web/src/components/Viewer/DiagramView.tsx for the reasoning).
+# These "box kind" classes now wear the sober --border outline instead, with the class
+# colour moved to a thin accent bar down their left edge (see _accent_bar); the remaining
+# classes are distinctive SHAPES (diamond, pill, cylinder, document fold, actor icon) that
+# already carry the meaning in their silhouette, so they keep the class colour as their own
+# stroke, unchanged.
+BOX_KIND_CLASSES = {"process", "backend", "frontend", "service", "external", "security",
+                     "manual", "queue"}
+
 # Node box size per semantic class — shapes that need more room (a diamond, an
 # actor icon + label) get a bigger box; everything else shares one default.
 _CLASS_SIZES = {
@@ -925,6 +935,13 @@ def _lane_layout(diagram: dict):
 # shapes and rendering
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _accent_bar(x: float, y: float, h: float) -> str:
+    """The thin coloured bar down a box-kind node's left edge that now carries the class
+    colour, since the box outline itself went sober (see BOX_KIND_CLASSES). Geometry mirrors
+    the viewer's NodeShape exactly: <rect x={x+1.5} y={y+9} width={3.5} height={h-18} rx={2}/>."""
+    return f'<rect class="node-accent" x="{x + 1.5}" y="{y + 9}" width="3.5" height="{h - 18}" rx="2"/>'
+
+
 def _shape_svg(cls: str, x: float, y: float, w: float, h: float) -> str:
     if cls == "decision":
         cx, cy = x + w / 2, y + h / 2
@@ -964,10 +981,11 @@ def _shape_svg(cls: str, x: float, y: float, w: float, h: float) -> str:
         inset = 12
         return (
             f'<rect class="node-shape" x="{x}" y="{y}" width="{w}" height="{h}" rx="8"/>'
+            f'{_accent_bar(x, y, h)}'
             f'<line class="node-icon" x1="{x + inset}" y1="{y + 6}" x2="{x + inset}" y2="{y + h - 6}"/>'
             f'<line class="node-icon" x1="{x + w - inset}" y1="{y + 6}" x2="{x + w - inset}" y2="{y + h - 6}"/>'
         )
-    return f'<rect class="node-shape" x="{x}" y="{y}" width="{w}" height="{h}" rx="10"/>'
+    return f'<rect class="node-shape" x="{x}" y="{y}" width="{w}" height="{h}" rx="10"/>{_accent_bar(x, y, h)}'
 
 
 def _render_node(node: dict, x: float, y: float, w: float, h: float) -> str:
@@ -1326,6 +1344,12 @@ def _diagram_svg(diagram: dict) -> str:
         f'<defs>'
         f'<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" '
         f'orient="auto-start-reverse"><path class="edge-arrow" d="M 0 1 L 10 5 L 0 9 z"/></marker>'
+        # Soft top-lit fill so a node reads as a raised surface, not a flat rectangle —
+        # mirror of the viewer's own #dg-node-grad (see DiagramView.tsx).
+        f'<linearGradient id="node-grad" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0" stop-color="var(--node-grad-top)"/>'
+        f'<stop offset="1" stop-color="var(--node-grad-bottom)"/>'
+        f'</linearGradient>'
         f'<style>{_shared_diagram_css()}</style>'
         f'</defs>{body}</svg>'
     )
@@ -1338,6 +1362,7 @@ def _diagram_svg(diagram: dict) -> str:
 _LIGHT_VARS = {
     "--diagram-bg": "#f8fafc", "--canvas-bg": "#ffffff", "--text": "#0f172a",
     "--muted-text": "#64748b", "--border": "#cbd5e1",
+    "--node-grad-top": "#ffffff", "--node-grad-bottom": "#e9edf3",
     "--edge-color": "#7c8a9c", "--edge-label-color": "#334155", "--edge-label-bg": "#ffffff",
     "--group-fill": "rgba(100,116,139,0.07)", "--group-border": "#94a3b8", "--group-label": "#475569",
     "--lane-alt-bg": "rgba(100,116,139,0.045)", "--lane-border": "#e2e8f0", "--lane-label": "#475569",
@@ -1361,6 +1386,7 @@ _LIGHT_VARS = {
 _DARK_VARS = {
     "--diagram-bg": "#0f1115", "--canvas-bg": "#161a20", "--text": "#e6e8eb",
     "--muted-text": "#94a3b8", "--border": "#334155",
+    "--node-grad-top": "#243044", "--node-grad-bottom": "#161a20",
     "--edge-color": "#4d6386", "--edge-label-color": "#cdd9ea", "--edge-label-bg": "#161a20",
     "--group-fill": "rgba(148,163,184,0.08)", "--group-border": "#475569", "--group-label": "#cbd5e1",
     "--lane-alt-bg": "rgba(148,163,184,0.06)", "--lane-border": "#242b36", "--lane-label": "#cbd5e1",
@@ -1388,14 +1414,24 @@ def _vars_block(vars_dict: dict, selector: str = ":root") -> str:
 
 
 def _shape_css_rules() -> str:
+    """Per-class rules. Box-kind classes (see BOX_KIND_CLASSES) get a sober --border
+    stroke on their shape and the class colour on their .node-accent bar instead; the
+    distinctive-shape classes keep the class colour as their own shape stroke, unchanged.
+    Every shape's fill is the shared top-lit #node-grad gradient rather than a flat
+    per-class fill, so a node reads as a raised surface — mirror of the viewer's own
+    NodeShape (see DiagramView.tsx)."""
     rules = []
     for c in CLASSES:
-        rules.append(f'.c-{c} .node-shape{{fill:var(--c-{c}-fill);stroke:var(--c-{c}-stroke);stroke-width:1.6;}}')
+        is_box = c in BOX_KIND_CLASSES
+        shape_stroke = "var(--border)" if is_box else f"var(--c-{c}-stroke)"
+        rules.append(f'.c-{c} .node-shape{{fill:url(#node-grad);stroke:{shape_stroke};stroke-width:1.6;}}')
         rules.append(f'.c-{c} .node-shape-rim{{fill:none;stroke:var(--c-{c}-stroke);opacity:.7;}}')
         rules.append(f'.c-{c} .node-shape-fold{{fill:var(--canvas-bg);stroke:var(--c-{c}-stroke);stroke-width:1.3;}}')
         rules.append(f'.c-{c} .node-icon{{stroke:var(--c-{c}-stroke);fill:none;stroke-width:1.6;stroke-linecap:round;}}')
         rules.append(f'.c-{c} .node-label{{fill:var(--c-{c}-text);}}')
         rules.append(f'.c-{c} .node-desc{{fill:var(--c-{c}-text);opacity:.75;}}')
+        if is_box:
+            rules.append(f'.c-{c} .node-accent{{fill:var(--c-{c}-stroke);}}')
     return "".join(rules)
 
 
@@ -1415,6 +1451,10 @@ def _generic_svg_rules() -> str:
         ".edge-label{fill:var(--edge-label-color);font:11px system-ui,Arial,sans-serif;}"
         ".node-label{font:600 12.5px system-ui,Arial,sans-serif;}"
         ".node-desc{font:10px system-ui,Arial,sans-serif;}"
+        # Soft shadow so a node reads as raised off the canvas, deepening slightly on
+        # hover — mirror of the viewer's .dg-node-shape (see web/src/styles/app.css).
+        ".node-shape{filter:drop-shadow(0 5px 11px rgba(0,0,0,.42));transition:filter .12s ease;}"
+        ".node:hover .node-shape{filter:drop-shadow(0 9px 18px rgba(0,0,0,.55)) brightness(1.08);}"
         ".lifeline{stroke:var(--border);stroke-width:1.4;stroke-dasharray:4 4;}"
         ".stub-circle{fill:var(--canvas-bg);stroke:var(--edge-color);stroke-width:1.6;}"
         ".stub-num{font:700 10px system-ui,Arial,sans-serif;fill:var(--edge-color);}"
