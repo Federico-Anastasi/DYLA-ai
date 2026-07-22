@@ -1190,7 +1190,10 @@ table.doc-table tr.dev-task-row td { background: var(--panel-2); font-weight: 40
 
 .dg-edge-hit { fill: none; stroke: transparent; stroke-width: 10; cursor: pointer; }
 .dg-edge-line { fill: none; }
-.dg-edge-label { font-size: 10.5px; fill: var(--muted); }
+.dg-edge-label { font-size: 10.5px; fill: var(--dg-edge-label); }
+/* Drawn in a layer above every edge line (see DiagramView's two-pass edge render) with a
+   panel-coloured chip behind it, so a label is never crossed or dimmed by another edge. */
+.dg-edge-label-bg { fill: var(--panel); opacity: .9; }
 
 /* off-page connectors: a workflow folded into several swimlane "systems" (see
    computeSwimlaneLayout) never draws an edge wrapping across the whole score once its

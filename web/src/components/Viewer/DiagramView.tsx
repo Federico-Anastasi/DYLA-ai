@@ -177,6 +177,70 @@ function borderPoint(box: Rect, towards: { x: number; y: number }): { x: number;
   return { x: cx + dx * scale, y: cy + dy * scale };
 }
 
+// Orthogonal (right-angle) edge path with rounded corners. Given a list of waypoints it draws
+// straight runs joined by quarter-circle turns of radius r — the crisp elbow that makes a flow
+// read as a flow instead of a web of crossing diagonals.
+function roundedOrth(pts: { x: number; y: number }[], r = 12): string {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i], a = pts[i - 1], b = pts[i + 1];
+    const v1x = Math.sign(p.x - a.x), v1y = Math.sign(p.y - a.y);
+    const v2x = Math.sign(b.x - p.x), v2y = Math.sign(b.y - p.y);
+    const rr = Math.min(r, Math.hypot(p.x - a.x, p.y - a.y) / 2, Math.hypot(b.x - p.x, b.y - p.y) / 2);
+    d += ` L ${p.x - v1x * rr} ${p.y - v1y * rr} Q ${p.x} ${p.y} ${p.x + v2x * rr} ${p.y + v2y * rr}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+  return d;
+}
+
+// Route one edge orthogonally between two boxes. Forward (target to the right) leaves the
+// source's right side and enters the target's left, elbowing at the mid-gap; a back edge
+// (target to the left) drops below both and comes up into the target's bottom; a vertical hop
+// (overlapping in x, different rows) leaves top/bottom. fromShift/toShift nudge the source-exit
+// and target-entry points along the shared side so several edges on one side fan out instead of
+// stacking on a single midpoint. Returns the path plus a point to hang the label on.
+function orthEdge(
+  fromBox: NodeBox, toBox: NodeBox, fromShift = 0, toShift = 0,
+): { path: string; labelX: number; labelY: number } {
+  const fx = fromBox.x, fw = fromBox.w, fcx = fromBox.x + fromBox.w / 2;
+  const tx = toBox.x, tw = toBox.w, tcx = toBox.x + toBox.w / 2;
+  const fcy = fromBox.y + fromBox.h / 2 + fromShift;
+  const tcy = toBox.y + toBox.h / 2 + toShift;
+  const GAP = 20;
+  // forward: target clearly to the right
+  if (tx >= fx + fw - 4) {
+    const sx = fx + fw, ex = tx;
+    if (Math.abs(fcy - tcy) < 3) {
+      return { path: roundedOrth([{ x: sx, y: fcy }, { x: ex, y: tcy }]), labelX: (sx + ex) / 2, labelY: fcy - 8 };
+    }
+    const midX = sx + Math.max(GAP, (ex - sx) / 2);
+    return {
+      path: roundedOrth([{ x: sx, y: fcy }, { x: midX, y: fcy }, { x: midX, y: tcy }, { x: ex, y: tcy }]),
+      labelX: midX, labelY: (fcy + tcy) / 2,
+    };
+  }
+  // back: target to the left — drop below both and come up into the target's bottom
+  if (tx + tw <= fx + 4) {
+    const sy = fromBox.y + fromBox.h, ty = toBox.y + toBox.h;
+    const dip = Math.max(sy, ty) + 40;
+    return {
+      path: roundedOrth([{ x: fcx, y: sy }, { x: fcx, y: dip }, { x: tcx, y: dip }, { x: tcx, y: ty }]),
+      labelX: (fcx + tcx) / 2, labelY: dip + 4,
+    };
+  }
+  // overlapping in x, different rows: vertical hop out of top/bottom
+  const goingDown = tcy > fcy;
+  const sy = goingDown ? fromBox.y + fromBox.h : fromBox.y;
+  const ey = goingDown ? toBox.y : toBox.y + toBox.h;
+  const midY = (sy + ey) / 2;
+  return {
+    path: roundedOrth([{ x: fcx, y: sy }, { x: fcx, y: midY }, { x: tcx, y: midY }, { x: tcx, y: ey }]),
+    labelX: (fcx + tcx) / 2, labelY: midY - 6,
+  };
+}
+
 // ---------- layout (free-canvas kinds: architecture / workflow / dataflow) ----------
 
 type NodeBox = { node: DiagramNode; x: number; y: number; w: number; h: number };
@@ -989,6 +1053,44 @@ export default function DiagramView({
     () => (activeDiagram && !isSwimlane && activeDiagram.kind !== "sequence" ? layoutGroups(activeDiagram, boxes) : []),
     [activeDiagram, isSwimlane, boxes],
   );
+  // Fan-out/fan-in spreading: when several forward edges leave one node's right side (or enter
+  // one node's left side), nudge their exit/entry points apart along that side so they don't all
+  // stack on the box's midpoint — the deterministic spread that keeps a hub legible. Ordered by
+  // the other endpoint's y so the fanned lines don't cross each other.
+  const edgeShift = useMemo(() => {
+    const shift = new Map<number, { from: number; to: number }>();
+    if (!activeDiagram || activeDiagram.kind === "sequence") return shift;
+    const boxById = new Map(boxes.map((b) => [b.node.id, b]));
+    const push = (m: Map<string, number[]>, k: string, v: number) => {
+      const a = m.get(k); if (a) a.push(v); else m.set(k, [v]);
+    };
+    const outRight = new Map<string, number[]>();
+    const inLeft = new Map<string, number[]>();
+    activeDiagram.edges.forEach((edge, i) => {
+      if (edge.from === edge.to) return;
+      const f = boxById.get(edge.from), t = boxById.get(edge.to);
+      if (!f || !t || t.x < f.x + f.w - 4) return; // only forward edges fan out
+      push(outRight, edge.from, i);
+      push(inLeft, edge.to, i);
+    });
+    const STEP = 13;
+    const spread = (ids: number[], box: NodeBox, key: "from" | "to", other: (i: number) => string) => {
+      if (ids.length < 2) return;
+      const ordered = [...ids].sort((a, b) =>
+        (boxById.get(other(a))?.y ?? 0) - (boxById.get(other(b))?.y ?? 0));
+      const span = Math.min(box.h - 16, STEP * (ordered.length - 1));
+      ordered.forEach((idx, k) => {
+        const off = (k - (ordered.length - 1) / 2) * (span / (ordered.length - 1));
+        const cur = shift.get(idx) ?? { from: 0, to: 0 };
+        cur[key] = off;
+        shift.set(idx, cur);
+      });
+    };
+    outRight.forEach((ids, nid) => spread(ids, boxById.get(nid)!, "from", (i) => activeDiagram.edges[i].to));
+    inLeft.forEach((ids, nid) => spread(ids, boxById.get(nid)!, "to", (i) => activeDiagram.edges[i].from));
+    return shift;
+  }, [activeDiagram, boxes]);
+
   const laneBoxes = swimlane?.lanes ?? [];
   const systemBoxes = swimlane?.systems ?? [];
   // One rect per (system, lane): each system repeats the whole lane stack at its own yOffset
@@ -1730,112 +1832,79 @@ export default function DiagramView({
                     ))
                   )}
 
-                  {activeDiagram.edges.map((edge, i) => {
-                    const fromBox = boxes.find((b) => b.node.id === edge.from);
-                    const toBox = boxes.find((b) => b.node.id === edge.to);
-                    if (!fromBox || !toBox) return null;
-                    const isSelf = edge.from === edge.to;
-                    const isSel = sel?.type === "edge" && sel.index === i;
+                  {/* Edges render in TWO passes: every line first, then every label on top, so a
+                      label is never crossed or dimmed by another edge's line (the labels-above-
+                      lines rule). Each edge contributes a `lines` node and an optional `label`
+                      node; both passes iterate the same precomputed list. */}
+                  {(() => {
+                    const geom = activeDiagram.edges.map((edge, i) => {
+                      const fromBox = boxes.find((b) => b.node.id === edge.from);
+                      const toBox = boxes.find((b) => b.node.id === edge.to);
+                      if (!fromBox || !toBox) return null;
+                      const isSelf = edge.from === edge.to;
+                      const isSel = sel?.type === "edge" && sel.index === i;
+                      const stroke = isSel ? "var(--accent)" : "var(--dg-edge)";
+                      const sw = isSel ? 2.4 : 1.75;
+                      const dash = edge.style === "dashed" ? "6 4" : undefined;
 
-                    // Swimlane mode, endpoints in different systems: an edge crossing the fold
-                    // (forward skip or back-edge alike) never draws as a line wrapping across
-                    // the whole score — it renders as a pair of BPMN-style off-page connectors,
-                    // a numbered stub leaving the source system's right edge and its twin
-                    // entering the destination system's left edge, per the task contract.
-                    if (isSwimlane && swimlane) {
-                      const fromRank = rankInfo.get(edge.from) ?? 0;
-                      const toRank = rankInfo.get(edge.to) ?? 0;
-                      const fromSys = swimlane.rankSystem[fromRank] ?? 0;
-                      const toSys = swimlane.rankSystem[toRank] ?? 0;
-                      if (fromSys !== toSys) {
-                        const num = crossingSystem.get(i) ?? 0;
-                        const exitSys = swimlane.systems[fromSys];
-                        const exitY = fromBox.y + fromBox.h / 2;
-                        const exitX = exitSys ? exitSys.width : fromBox.x + fromBox.w;
-                        const enterY = toBox.y + toBox.h / 2;
-                        const enterX = LANE_LABEL_W;
-                        const stroke = isSel ? "var(--accent)" : "var(--muted)";
+                      const labelChip = (lx: number, ly: number) => {
+                        if (!edge.label) return null;
+                        const w = edge.label.length * 6 + 12;
                         return (
-                          <g
-                            key={i}
-                            className={`dg-offpage ${isSel ? "selected" : ""}`}
-                            onPointerDown={(e) => { e.stopPropagation(); setSel({ type: "edge", index: i }); }}
-                          >
-                            <path
-                              className="dg-edge-line"
-                              d={`M ${fromBox.x + fromBox.w} ${exitY} L ${exitX} ${exitY}`}
-                              stroke={stroke}
-                              strokeWidth={isSel ? 2.2 : 1.4}
-                              strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
-                            />
-                            <circle className="dg-offpage-circle" cx={exitX} cy={exitY} r={OFFPAGE_R} stroke={stroke}>
-                              <title>{`→ ${toBox.node.label}`}</title>
-                            </circle>
-                            <text className="dg-offpage-num" x={exitX} y={exitY} textAnchor="middle" dominantBaseline="central">
-                              {num}
-                            </text>
-
-                            <path
-                              className="dg-edge-line"
-                              d={`M ${enterX} ${enterY} L ${toBox.x} ${enterY}`}
-                              stroke={stroke}
-                              strokeWidth={isSel ? 2.2 : 1.4}
-                              strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
-                              markerEnd={isSel ? "url(#dg-arrow-sel)" : "url(#dg-arrow)"}
-                            />
-                            <circle className="dg-offpage-circle" cx={enterX} cy={enterY} r={OFFPAGE_R} stroke={stroke}>
-                              <title>{`← ${fromBox.node.label}`}</title>
-                            </circle>
-                            <text className="dg-offpage-num" x={enterX} y={enterY} textAnchor="middle" dominantBaseline="central">
-                              {num}
-                            </text>
-                            {edge.label && (
-                              <text x={exitX} y={exitY - 14} textAnchor="middle" className="dg-edge-label" style={{ pointerEvents: "none" }}>
-                                {edge.label}
-                              </text>
-                            )}
+                          <g key={`t${i}`} style={{ pointerEvents: "none" }}>
+                            <rect className="dg-edge-label-bg" x={lx - w / 2} y={ly - 12} width={w} height={16} rx={5} />
+                            <text className="dg-edge-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="central">{edge.label}</text>
                           </g>
                         );
-                      }
-                    }
+                      };
 
-                    let path: string;
-                    let midX: number, midY: number;
-                    if (isSelf) {
-                      const bx = fromBox.x + fromBox.w, by = fromBox.y + fromBox.h * 0.3;
-                      path = `M ${bx} ${by} C ${bx + 44} ${by - 12}, ${bx + 44} ${by + fromBox.h * 0.4 + 12}, ${bx} ${by + fromBox.h * 0.4}`;
-                      midX = bx + 40; midY = by + fromBox.h * 0.2;
-                    } else {
-                      const fromCenter = { x: fromBox.x + fromBox.w / 2, y: fromBox.y + fromBox.h / 2 };
-                      const toCenter = { x: toBox.x + toBox.w / 2, y: toBox.y + toBox.h / 2 };
-                      const from = borderPoint(fromBox, toCenter);
-                      const to = borderPoint(toBox, fromCenter);
-                      path = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
-                      midX = (from.x + to.x) / 2; midY = (from.y + to.y) / 2;
-                    }
-                    return (
-                      <g key={i}>
-                        <path
-                          className="dg-edge-hit"
-                          d={path}
-                          onPointerDown={(e) => { e.stopPropagation(); setSel({ type: "edge", index: i }); }}
-                        />
-                        <path
-                          className="dg-edge-line"
-                          d={path}
-                          stroke={isSel ? "var(--accent)" : "var(--muted)"}
-                          strokeWidth={isSel ? 2.2 : 1.4}
-                          strokeDasharray={edge.style === "dashed" ? "6 4" : undefined}
-                          markerEnd={isSel ? "url(#dg-arrow-sel)" : "url(#dg-arrow)"}
-                        />
-                        {edge.label && (
-                          <text x={midX} y={midY - 5} textAnchor="middle" className="dg-edge-label" style={{ pointerEvents: "none" }}>
-                            {edge.label}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
+                      // Swimlane, endpoints in different systems: a pair of BPMN-style numbered
+                      // off-page connectors instead of one line wrapping across the whole score.
+                      if (isSwimlane && swimlane) {
+                        const fromSys = swimlane.rankSystem[rankInfo.get(edge.from) ?? 0] ?? 0;
+                        const toSys = swimlane.rankSystem[rankInfo.get(edge.to) ?? 0] ?? 0;
+                        if (fromSys !== toSys) {
+                          const num = crossingSystem.get(i) ?? 0;
+                          const exitSys = swimlane.systems[fromSys];
+                          const exitY = fromBox.y + fromBox.h / 2;
+                          const exitX = exitSys ? exitSys.width : fromBox.x + fromBox.w;
+                          const enterY = toBox.y + toBox.h / 2;
+                          const enterX = LANE_LABEL_W;
+                          const lines = (
+                            <g key={i} className={`dg-offpage ${isSel ? "selected" : ""}`}
+                               onPointerDown={(e) => { e.stopPropagation(); setSel({ type: "edge", index: i }); }}>
+                              <path className="dg-edge-line" d={`M ${fromBox.x + fromBox.w} ${exitY} L ${exitX} ${exitY}`} stroke={stroke} strokeWidth={sw} strokeDasharray={dash} />
+                              <circle className="dg-offpage-circle" cx={exitX} cy={exitY} r={OFFPAGE_R} stroke={stroke}><title>{`→ ${toBox.node.label}`}</title></circle>
+                              <text className="dg-offpage-num" x={exitX} y={exitY} textAnchor="middle" dominantBaseline="central">{num}</text>
+                              <path className="dg-edge-line" d={`M ${enterX} ${enterY} L ${toBox.x} ${enterY}`} stroke={stroke} strokeWidth={sw} strokeDasharray={dash} markerEnd={isSel ? "url(#dg-arrow-sel)" : "url(#dg-arrow)"} />
+                              <circle className="dg-offpage-circle" cx={enterX} cy={enterY} r={OFFPAGE_R} stroke={stroke}><title>{`← ${fromBox.node.label}`}</title></circle>
+                              <text className="dg-offpage-num" x={enterX} y={enterY} textAnchor="middle" dominantBaseline="central">{num}</text>
+                            </g>
+                          );
+                          return { lines, label: labelChip(exitX, exitY - 14) };
+                        }
+                      }
+
+                      let path: string;
+                      let midX: number, midY: number;
+                      if (isSelf) {
+                        const bx = fromBox.x + fromBox.w, by = fromBox.y + fromBox.h * 0.3;
+                        path = `M ${bx} ${by} C ${bx + 44} ${by - 12}, ${bx + 44} ${by + fromBox.h * 0.4 + 12}, ${bx} ${by + fromBox.h * 0.4}`;
+                        midX = bx + 40; midY = by + fromBox.h * 0.2;
+                      } else {
+                        const e = orthEdge(fromBox, toBox, edgeShift.get(i)?.from ?? 0, edgeShift.get(i)?.to ?? 0);
+                        path = e.path; midX = e.labelX; midY = e.labelY;
+                      }
+                      const lines = (
+                        <g key={i}>
+                          <path className="dg-edge-hit" d={path} onPointerDown={(e) => { e.stopPropagation(); setSel({ type: "edge", index: i }); }} />
+                          <path className="dg-edge-line" d={path} stroke={stroke} strokeWidth={sw} strokeDasharray={dash} markerEnd={isSel ? "url(#dg-arrow-sel)" : "url(#dg-arrow)"} />
+                        </g>
+                      );
+                      return { lines, label: labelChip(midX, midY - 4) };
+                    }).filter((g): g is { lines: JSX.Element; label: JSX.Element | null } => g !== null);
+                    return (<>{geom.map((g) => g.lines)}{geom.map((g) => g.label)}</>);
+                  })()}
 
                   {boxes.map((box) => {
                     const isSel = sel?.type === "node" && sel.id === box.node.id;

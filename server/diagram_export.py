@@ -1060,40 +1060,122 @@ def _edge_label(mx: float, my: float, label: str | None, anchor: str = "middle",
             f'</g>')
 
 
+def _sign(v: float) -> int:
+    return (v > 0) - (v < 0)
+
+
+def _rounded_orth(pts: list[tuple[float, float]], r: float = 12) -> str:
+    """Orthogonal path through waypoints with quarter-circle corners of radius r —
+    the crisp right-angle elbow. Mirror of the viewer's roundedOrth (DiagramView.tsx)
+    so the export routes edges the same way the on-screen board does."""
+    if len(pts) < 2:
+        return ""
+    d = f"M {pts[0][0]} {pts[0][1]}"
+    for i in range(1, len(pts) - 1):
+        (px, py), (ax, ay), (bx, by) = pts[i], pts[i - 1], pts[i + 1]
+        v1x, v1y = _sign(px - ax), _sign(py - ay)
+        v2x, v2y = _sign(bx - px), _sign(by - py)
+        rr = min(r, ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5 / 2,
+                 ((bx - px) ** 2 + (by - py) ** 2) ** 0.5 / 2)
+        d += (f" L {px - v1x * rr} {py - v1y * rr} Q {px} {py} "
+              f"{px + v2x * rr} {py + v2y * rr}")
+    d += f" L {pts[-1][0]} {pts[-1][1]}"
+    return d
+
+
+def _orth_edge(from_box, to_box, from_shift: float = 0.0, to_shift: float = 0.0):
+    """Route one edge orthogonally (mirror of the viewer's orthEdge). Returns
+    (path, label_x, label_y). Forward → leave right / enter left; back → drop
+    below and come up; vertical hop otherwise."""
+    fx, fy, fw, fh = from_box
+    tx, ty, tw, th = to_box
+    fcx, tcx = fx + fw / 2, tx + tw / 2
+    fcy, tcy = fy + fh / 2 + from_shift, ty + th / 2 + to_shift
+    gap = 20
+    if tx >= fx + fw - 4:  # forward
+        sx, ex = fx + fw, tx
+        if abs(fcy - tcy) < 3:
+            return _rounded_orth([(sx, fcy), (ex, tcy)]), (sx + ex) / 2, fcy - 8
+        mid_x = sx + max(gap, (ex - sx) / 2)
+        return (_rounded_orth([(sx, fcy), (mid_x, fcy), (mid_x, tcy), (ex, tcy)]),
+                mid_x, (fcy + tcy) / 2)
+    if tx + tw <= fx + 4:  # back: dip below both and rise into the target's bottom
+        sy, ty2 = fy + fh, ty + th
+        dip = max(sy, ty2) + 40
+        return (_rounded_orth([(fcx, sy), (fcx, dip), (tcx, dip), (tcx, ty2)]),
+                (fcx + tcx) / 2, dip + 4)
+    going_down = tcy > fcy
+    sy = fy + fh if going_down else fy
+    ey = ty if going_down else ty + th
+    mid_y = (sy + ey) / 2
+    return (_rounded_orth([(fcx, sy), (fcx, mid_y), (tcx, mid_y), (tcx, ey)]),
+            (fcx + tcx) / 2, mid_y - 6)
+
+
+def _edge_shifts(valid_edges: list[dict], node_boxes: dict) -> dict:
+    """Fan-out/fan-in spread: several forward edges sharing a node's right (or a
+    node's left) side get their exit/entry points nudged apart along that side so
+    they don't stack on one midpoint. Ordered by the other endpoint's y so the
+    fanned lines don't cross. Mirror of the viewer's edgeShift."""
+    out_right: dict[str, list[int]] = {}
+    in_left: dict[str, list[int]] = {}
+    for i, e in enumerate(valid_edges):
+        u, v = e["from"], e["to"]
+        if u == v or u not in node_boxes or v not in node_boxes:
+            continue
+        fx, _fy, fw, _fh = node_boxes[u]
+        tx = node_boxes[v][0]
+        if tx < fx + fw - 4:
+            continue  # only forward edges fan out
+        out_right.setdefault(u, []).append(i)
+        in_left.setdefault(v, []).append(i)
+
+    shift: dict[int, list[float]] = {}
+    step = 13
+
+    def spread(ids: list[int], box, key: int, other_end):
+        if len(ids) < 2:
+            return
+        ordered = sorted(ids, key=lambda i: node_boxes[other_end(valid_edges[i])][1])
+        span = min(box[3] - 16, step * (len(ordered) - 1))
+        for k, idx in enumerate(ordered):
+            off = (k - (len(ordered) - 1) / 2) * (span / (len(ordered) - 1))
+            shift.setdefault(idx, [0.0, 0.0])[key] = off
+
+    for nid, ids in out_right.items():
+        spread(ids, node_boxes[nid], 0, lambda e: e["to"])
+    for nid, ids in in_left.items():
+        spread(ids, node_boxes[nid], 1, lambda e: e["from"])
+    return shift
+
+
 def _render_edges_rank(valid_edges: list[dict], node_boxes: dict, ranks: dict) -> str:
-    """Edge rendering shared by architecture/dataflow, non-swimlane workflow
-    and swimlane workflow diagrams — all of them lay out left to right now,
-    so there is only one routing scheme: a forward edge (rank increases) is a
-    plain bezier from the right edge of its source to the left edge of its
-    target; a back/same-rank edge bows below both nodes instead, and passes
-    freely between rows/lanes."""
-    parts = []
+    """Edge rendering shared by architecture/dataflow, non-swimlane workflow and
+    swimlane workflow diagrams — all lay out left to right, routed orthogonally
+    (see _orth_edge). A self-edge loops on the source's right side. Fan-out/fan-in
+    points are spread (see _edge_shifts). Labels are emitted AFTER every line (a
+    second pass) so a label is never crossed by another edge's line — the
+    labels-above-lines rule the viewer follows too. `ranks` is unused now that
+    routing is position-based, kept for call-site compatibility."""
+    shifts = _edge_shifts(valid_edges, node_boxes)
+    lines, labels = [], []
     for i, e in enumerate(valid_edges):
         u, v = e["from"], e["to"]
         if u not in node_boxes or v not in node_boxes:
             continue  # defensive: should not happen, valid_edges is already filtered
-        x1, y1, w1, h1 = node_boxes[u]
-        x2, y2, w2, h2 = node_boxes[v]
-        forward = ranks.get(v, 0) > ranks.get(u, 0)
-
-        if forward:
-            sx, sy = x1 + w1, y1 + h1 / 2
-            tx, ty = x2, y2 + h2 / 2
-            dx = (tx - sx) * 0.5
-            path = f"M {sx} {sy} C {sx + dx} {sy}, {tx - dx} {ty}, {tx} {ty}"
-            mx, my = (sx + tx) / 2, (sy + ty) / 2
+        if u == v:  # self-edge: small loop off the right side
+            x1, y1, w1, h1 = node_boxes[u]
+            bx, by = x1 + w1, y1 + h1 * 0.3
+            path = (f"M {bx} {by} C {bx + 44} {by - 12}, "
+                    f"{bx + 44} {by + h1 * 0.4 + 12}, {bx} {by + h1 * 0.4}")
+            mx, my = bx + 40, by + h1 * 0.2
         else:
-            sx, sy = x1 + w1 / 2, y1 + h1
-            tx, ty = x2 + w2 / 2, y2 + h2
-            bow = 50 + 20 * (i % 3)
-            midy = max(sy, ty) + bow
-            path = f"M {sx} {sy} C {sx} {midy}, {tx} {midy}, {tx} {ty}"
-            mx, my = (sx + tx) / 2, midy
-
+            fs, ts = shifts.get(i, [0.0, 0.0])
+            path, mx, my = _orth_edge(node_boxes[u], node_boxes[v], fs, ts)
         dash_cls = " edge-dashed" if e.get("style") == "dashed" else ""
-        parts.append(f'<path class="edge{dash_cls}" d="{path}" marker-end="url(#arrow)"/>')
-        parts.append(_edge_label(mx, my, e.get("label")))
-    return "".join(parts)
+        lines.append(f'<path class="edge{dash_cls}" d="{path}" marker-end="url(#arrow)"/>')
+        labels.append(_edge_label(mx, my, e.get("label")))
+    return "".join(lines) + "".join(labels)
 
 
 def _split_cross_system_edges(valid_edges: list[dict], ranks: dict, system_meta: dict) -> tuple[list, list]:
@@ -1256,7 +1338,7 @@ def _diagram_svg(diagram: dict) -> str:
 _LIGHT_VARS = {
     "--diagram-bg": "#f8fafc", "--canvas-bg": "#ffffff", "--text": "#0f172a",
     "--muted-text": "#64748b", "--border": "#cbd5e1",
-    "--edge-color": "#64748b", "--edge-label-bg": "#ffffff",
+    "--edge-color": "#7c8a9c", "--edge-label-color": "#334155", "--edge-label-bg": "#ffffff",
     "--group-fill": "rgba(100,116,139,0.07)", "--group-border": "#94a3b8", "--group-label": "#475569",
     "--lane-alt-bg": "rgba(100,116,139,0.045)", "--lane-border": "#e2e8f0", "--lane-label": "#475569",
     "--c-actor-fill": "#ede9fe", "--c-actor-stroke": "#7c3aed", "--c-actor-text": "#3b0764",
@@ -1279,7 +1361,7 @@ _LIGHT_VARS = {
 _DARK_VARS = {
     "--diagram-bg": "#0f1115", "--canvas-bg": "#161a20", "--text": "#e6e8eb",
     "--muted-text": "#94a3b8", "--border": "#334155",
-    "--edge-color": "#94a3b8", "--edge-label-bg": "#161a20",
+    "--edge-color": "#4d6386", "--edge-label-color": "#cdd9ea", "--edge-label-bg": "#161a20",
     "--group-fill": "rgba(148,163,184,0.08)", "--group-border": "#475569", "--group-label": "#cbd5e1",
     "--lane-alt-bg": "rgba(148,163,184,0.06)", "--lane-border": "#242b36", "--lane-label": "#cbd5e1",
     "--c-actor-fill": "#2e1065", "--c-actor-stroke": "#a78bfa", "--c-actor-text": "#ede9fe",
@@ -1330,7 +1412,7 @@ def _generic_svg_rules() -> str:
         ".edge-dashed{stroke-dasharray:7 5;}"
         ".edge-arrow{fill:var(--edge-color);}"
         ".edge-label-bg{fill:var(--edge-label-bg);opacity:.94;}"
-        ".edge-label{fill:var(--muted-text);font:11px system-ui,Arial,sans-serif;}"
+        ".edge-label{fill:var(--edge-label-color);font:11px system-ui,Arial,sans-serif;}"
         ".node-label{font:600 12.5px system-ui,Arial,sans-serif;}"
         ".node-desc{font:10px system-ui,Arial,sans-serif;}"
         ".lifeline{stroke:var(--border);stroke-width:1.4;stroke-dasharray:4 4;}"

@@ -72,4 +72,11 @@
   --dg-decision: #e0a83e;
   --dg-document: #7db4ff;
   --dg-manual: #94a5bd;
+
+  /* Edges read one step quieter than the nodes they join: the connector line is a muted
+     blue-grey, deliberately DARKER than its own label so the text sits clearly on top and
+     stays the thing you read. Keep this gap — a line the same brightness as its label makes
+     the two compete. */
+  --dg-edge: #4d6386;
+  --dg-edge-label: #cdd9ea;
 }
