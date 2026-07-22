@@ -828,11 +828,18 @@ function eligibleParents(groups: DiagramGroup[], groupId: string): DiagramGroup[
 
 // ---------- shape per node class ----------
 
+// A node's semantic colour used to be its border, which read heavy and dated. Now the box
+// kinds (process/backend/…) wear a sober --border outline with a thin coloured accent bar down
+// their left edge instead, while the distinctive shapes (decision rhombus, start/end pill,
+// database cylinder, document, actor) keep the colour as their own stroke — the shape already
+// carries the meaning. Every fill is the top-lit gradient so nodes read as raised surfaces.
 function NodeShape({ box, colorVar, selected }: { box: NodeBox; colorVar: string; selected: boolean }) {
   const { x, y, w, h, node } = box;
-  const stroke = selected ? "var(--accent)" : colorVar;
-  const strokeWidth = selected ? 2.4 : 1.6;
-  const common = { fill: "var(--panel-2)", stroke, strokeWidth };
+  const isBoxKind = !["decision", "start", "end", "database", "document", "actor"].includes(node.class);
+  const stroke = selected ? "var(--accent)" : (isBoxKind ? "var(--border)" : colorVar);
+  const strokeWidth = selected ? 2.4 : 1.4;
+  const fill = "url(#dg-node-grad)";
+  const common = { fill, stroke, strokeWidth };
 
   switch (node.class) {
     case "decision": {
@@ -848,8 +855,8 @@ function NodeShape({ box, colorVar, selected }: { box: NodeBox; colorVar: string
       return (
         <g>
           <path className="dg-node-shape" d={body} {...common} />
-          <ellipse cx={x + rx} cy={y + h - ry} rx={rx} ry={ry} fill="var(--panel-2)" stroke={stroke} strokeWidth={strokeWidth} />
-          <ellipse cx={x + rx} cy={y + ry} rx={rx} ry={ry} fill="var(--panel-2)" stroke={stroke} strokeWidth={strokeWidth} />
+          <ellipse cx={x + rx} cy={y + h - ry} rx={rx} ry={ry} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+          <ellipse cx={x + rx} cy={y + ry} rx={rx} ry={ry} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
         </g>
       );
     }
@@ -867,7 +874,7 @@ function NodeShape({ box, colorVar, selected }: { box: NodeBox; colorVar: string
       const bodyBottom = y + h * 0.6;
       return (
         <g>
-          <circle cx={cx} cy={headCy} r={headR} fill="var(--panel-2)" stroke={stroke} strokeWidth={strokeWidth} />
+          <circle cx={cx} cy={headCy} r={headR} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
           <path
             className="dg-node-shape-lines"
             d={`M ${cx} ${headCy + headR} V ${bodyBottom} M ${x + w * 0.12} ${y + h * 0.38} H ${x + w * 0.88} `
@@ -880,7 +887,12 @@ function NodeShape({ box, colorVar, selected }: { box: NodeBox; colorVar: string
       );
     }
     default:
-      return <rect className="dg-node-shape" x={x} y={y} width={w} height={h} rx={9} {...common} />;
+      return (
+        <g>
+          <rect className="dg-node-shape" x={x} y={y} width={w} height={h} rx={10} {...common} />
+          {!selected && <rect x={x + 1.5} y={y + 9} width={3.5} height={h - 18} rx={2} fill={colorVar} />}
+        </g>
+      );
   }
 }
 
@@ -1589,11 +1601,16 @@ export default function DiagramView({
             >
               <defs>
                 <marker id="dg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                  <path d="M0,0 L10,5 L0,10 z" fill="#9a908e" />
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--dg-edge)" />
                 </marker>
                 <marker id="dg-arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
                 </marker>
+                {/* Soft top-lit fill so a node reads as a raised surface, not a flat rectangle. */}
+                <linearGradient id="dg-node-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="var(--panel-3)" />
+                  <stop offset="1" stopColor="var(--panel)" />
+                </linearGradient>
               </defs>
 
               {activeDiagram.kind === "sequence" && seq ? (

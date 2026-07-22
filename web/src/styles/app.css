@@ -1163,9 +1163,11 @@ table.doc-table tr.dev-task-row td { background: var(--panel-2); font-weight: 40
    (--dg-<class> in theme.css) — never a literal colour per node. */
 .dg-node { cursor: grab; }
 .dg-node:active { cursor: grabbing; }
-.dg-node-shape { transition: stroke .1s ease; }
-.dg-node:hover .dg-node-shape { filter: brightness(1.12); }
-.dg-node-label { font-size: 12px; fill: var(--text); font-weight: 500; }
+/* Soft drop shadow lifts each node off the canvas; it deepens on hover so the node reacts to
+   the cursor — a small liveness a static generated diagram can't have. */
+.dg-node-shape { transition: stroke .1s ease, filter .12s ease; filter: drop-shadow(0 5px 11px rgba(0,0,0,.42)); }
+.dg-node:hover .dg-node-shape { filter: drop-shadow(0 9px 18px rgba(0,0,0,.55)) brightness(1.08); }
+.dg-node-label { font-size: 12.5px; fill: var(--text); font-weight: 560; letter-spacing: -.003em; }
 .dg-node-desc { font-size: 10px; fill: var(--muted); }
 .dg-node-actions, .dg-group-actions { opacity: 0; transition: opacity .12s; }
 .dg-node:hover .dg-node-actions, .dg-group:hover .dg-group-actions { opacity: 1; }
