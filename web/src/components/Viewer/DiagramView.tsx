@@ -835,7 +835,7 @@ function eligibleParents(groups: DiagramGroup[], groupId: string): DiagramGroup[
 // carries the meaning. Every fill is the top-lit gradient so nodes read as raised surfaces.
 function NodeShape({ box, colorVar, selected }: { box: NodeBox; colorVar: string; selected: boolean }) {
   const { x, y, w, h, node } = box;
-  const isBoxKind = !["decision", "start", "end", "database", "document", "actor"].includes(node.class);
+  const isBoxKind = !["decision", "start", "end", "database", "storage", "document", "actor"].includes(node.class);
   const stroke = selected ? "var(--accent)" : (isBoxKind ? "var(--border)" : colorVar);
   const strokeWidth = selected ? 2.4 : 1.4;
   const fill = "url(#dg-node-grad)";
@@ -849,7 +849,8 @@ function NodeShape({ box, colorVar, selected }: { box: NodeBox; colorVar: string
     case "start":
     case "end":
       return <rect className="dg-node-shape" x={x} y={y} width={w} height={h} rx={h / 2} ry={h / 2} {...common} />;
-    case "database": {
+    case "database":
+    case "storage": {
       const rx = w / 2, ry = 12;
       const body = `M ${x} ${y + ry} L ${x} ${y + h - ry} A ${rx} ${ry} 0 0 0 ${x + w} ${y + h - ry} L ${x + w} ${y + ry}`;
       return (
