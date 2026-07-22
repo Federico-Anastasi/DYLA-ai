@@ -41,12 +41,20 @@ const RANK_GAP_ARCH = 90; // gap between ranks for architecture/dataflow (was a 
                           // class in that rank; now an explicit, consistently tighter air gap)
 const RANK_GAP_WORKFLOW = 70; // gap between ranks for workflow: box width + a little air
 const NODE_GAP = 30; // gap between nodes sharing a rank (cross-axis packing)
+const GROUP_EXTRA_GAP = 26; // extra cross-axis gap where two adjacent nodes in a rank belong
+                            // to different groups, so their group boxes don't touch (mirrors
+                            // server/diagram_export.py's GROUP_EXTRA_GAP)
 const ROW_GAP = 70; // gap between serpentine rows (workflow only)
 const SERPENTINE_RANK_THRESHOLD = 9; // beyond this many ranks a workflow folds into rows
 const DEFAULT_SIZE = { w: 172, h: 58 }; // fallback extent for a rank with no nodes in it
 const PADDING = 70;
 const GROUP_PAD = 30; // base padding a group's box adds around its member nodes
 const GROUP_LABEL_H = 24;
+// Post-layout collision resolution (see resolveClusterCollisions): the rank grid places
+// nodes by rank/order alone and never sees how big a group's padded box grows once its
+// members scatter across ranks, so two group boxes can overlap. This pushes them apart.
+const COLLISION_GAP = 16; // clearance left between two clusters once pushed apart
+const COLLISION_MAX_ITERS = 200; // iteration cap so a pathological input can't spin forever
 
 // ---------- swimlane constants (workflow with groups[] — see diagramUsesSwimlanes) ----------
 
@@ -180,7 +188,7 @@ type Override = { id: string; x: number; y: number } | null;
 // skipped. Without this, the relaxation below inflates ranks around every loop (a
 // workflow's "no" branch back to an earlier step) until the iteration cap — measured
 // live as a ~1100px hole of empty rank columns in the middle of the canvas.
-function computeRanks(diagram: Diagram): Map<string, number> {
+export function computeRanks(diagram: Diagram): Map<string, number> {
   const ids = diagram.nodes.map((n) => n.id);
   const idSet = new Set(ids);
   const adj = new Map<string, string[]>(ids.map((id) => [id, []]));
@@ -230,7 +238,7 @@ function byRankMap(diagram: Diagram, rank: Map<string, number>): Map<number, str
 
 // Every node gets its base position from node.pos (manual, wins outright) or the auto-layout
 // map for the diagram's kind; the drag-in-progress override wins over both.
-function buildBoxes(diagram: Diagram, autoPos: Map<string, { x: number; y: number }>, override: Override): NodeBox[] {
+export function buildBoxes(diagram: Diagram, autoPos: Map<string, { x: number; y: number }>, override: Override): NodeBox[] {
   return diagram.nodes.map((node) => {
     const size = nodeSize(node.class);
     const base = node.pos ?? autoPos.get(node.id) ?? { x: 0, y: 0 };
@@ -239,15 +247,95 @@ function buildBoxes(diagram: Diagram, autoPos: Map<string, { x: number; y: numbe
   });
 }
 
+// Acyclic adjacency (forward edges only; a back edge that would close a cycle is dropped) —
+// the same edge subset computeRanks builds internally, rebuilt here so the barycenter pass
+// below orders nodes against exactly the edges the ranking used.
+function acyclicAdjacency(diagram: Diagram): Map<string, string[]> {
+  const ids = diagram.nodes.map((n) => n.id);
+  const idSet = new Set(ids);
+  const adj = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const reaches = (from: string, target: string): boolean => {
+    const stack = [from];
+    const seen = new Set<string>();
+    while (stack.length) {
+      const cur = stack.pop()!;
+      if (cur === target) return true;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      stack.push(...(adj.get(cur) ?? []));
+    }
+    return false;
+  };
+  for (const e of diagram.edges) {
+    if (!idSet.has(e.from) || !idSet.has(e.to) || e.from === e.to) continue;
+    if (reaches(e.to, e.from)) continue; // back edge: would close a cycle
+    adj.get(e.from)!.push(e.to);
+  }
+  return adj;
+}
+
+// One barycenter pass (mirrors server/diagram_export.py's _order_within_ranks): each rank
+// after the first is ordered by the mean position of its predecessors in the already-ordered
+// previous ranks, then by a per-group average of that same value — so nodes sharing a group
+// land next to each other instead of interleaved with the rest of the rank. That grouping is
+// what keeps a group's bounding box compact instead of spanning the whole rank, which is the
+// precondition for the collision pass to be able to separate groups at all.
+function orderWithinRanks(diagram: Diagram, rank: Map<string, number>): Map<number, string[]> {
+  const nodeById = new Map(diagram.nodes.map((n) => [n.id, n]));
+  const adj = acyclicAdjacency(diagram);
+  const maxRank = Math.max(0, ...Array.from(rank.values()));
+  const byRank = new Map<number, string[]>();
+  for (let r = 0; r <= maxRank; r++) byRank.set(r, []);
+  diagram.nodes.forEach((n) => byRank.get(rank.get(n.id) ?? 0)!.push(n.id));
+
+  const preds = new Map<string, string[]>(diagram.nodes.map((n) => [n.id, []]));
+  adj.forEach((tos, from) => tos.forEach((to) => preds.get(to)!.push(from)));
+
+  const position = new Map<string, number>();
+  (byRank.get(0) ?? []).forEach((id, i) => position.set(id, i));
+
+  for (let r = 1; r <= maxRank; r++) {
+    const row = byRank.get(r) ?? [];
+    if (!row.length) continue;
+    const indexInRow = new Map(row.map((id, i) => [id, i]));
+    const barycenter = (id: string): number => {
+      const ps = (preds.get(id) ?? []).filter((p) => position.has(p)).map((p) => position.get(p)!);
+      return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : indexInRow.get(id)!;
+    };
+    const bary = new Map(row.map((id) => [id, barycenter(id)]));
+    const groupVals = new Map<string | undefined, number[]>();
+    row.forEach((id) => {
+      const g = nodeById.get(id)!.group;
+      if (!groupVals.has(g)) groupVals.set(g, []);
+      groupVals.get(g)!.push(bary.get(id)!);
+    });
+    const groupAvg = new Map<string | undefined, number>();
+    groupVals.forEach((vals, g) => groupAvg.set(g, vals.reduce((a, b) => a + b, 0) / vals.length));
+    const sorted = [...row].sort((a, b) => {
+      const ga = groupAvg.get(nodeById.get(a)!.group)!;
+      const gb = groupAvg.get(nodeById.get(b)!.group)!;
+      if (ga !== gb) return ga - gb;
+      const ba = bary.get(a)!;
+      const bb = bary.get(b)!;
+      if (ba !== bb) return ba - bb;
+      return indexInRow.get(a)! - indexInRow.get(b)!;
+    });
+    byRank.set(r, sorted);
+    sorted.forEach((id, i) => position.set(id, i));
+  }
+  return byRank;
+}
+
 // Left-to-right layered layout shared by architecture / dataflow / workflow. Workflow alone
 // uses the compact rank gap and, past SERPENTINE_RANK_THRESHOLD ranks, folds into rows read
 // as a serpentine (row 0 left-to-right, row 1 right-to-left beneath it, ...) instead of
-// running the diagram arbitrarily wide.
-function computeLayeredAutoPos(
+// running the diagram arbitrarily wide. Nodes are ordered per rank by orderWithinRanks so a
+// group's members stack together; a GROUP_EXTRA_GAP is inserted at every group boundary.
+export function computeLayeredAutoPos(
   diagram: Diagram,
   rank: Map<string, number>,
-  byRank: Map<number, string[]>,
 ): Map<string, { x: number; y: number }> {
+  const byRank = orderWithinRanks(diagram, rank);
   const nodesById = new Map(diagram.nodes.map((n) => [n.id, n]));
   const maxRank = Math.max(0, ...Array.from(rank.values()));
   const totalRanks = maxRank + 1;
@@ -268,8 +356,11 @@ function computeLayeredAutoPos(
     const widths = ids.map((id) => nodeSize(nodesById.get(id)!.class).w);
     colExtent.push(widths.length ? Math.max(...widths) : DEFAULT_SIZE.w);
     let cross = 0;
+    let prevGroup: string | undefined;
     ids.forEach((id, i) => {
-      if (i > 0) cross += NODE_GAP;
+      const group = nodesById.get(id)!.group;
+      if (i > 0) cross += NODE_GAP + (group !== prevGroup ? GROUP_EXTRA_GAP : 0);
+      prevGroup = group;
       nodeLocalCross.set(id, cross);
       cross += nodeSize(nodesById.get(id)!.class).h;
     });
@@ -502,7 +593,7 @@ function nestingBelow(g: DiagramGroup, groups: DiagramGroup[]): number {
 // anywhere in the tree) draws nothing on the canvas — it still exists, and shows up once a
 // node is assigned to it. Returned in root-first order so nested boxes paint on top of their
 // parent's.
-function layoutGroups(diagram: Diagram, boxes: NodeBox[]): GroupBox[] {
+export function layoutGroups(diagram: Diagram, boxes: NodeBox[]): GroupBox[] {
   const groups = diagram.groups ?? [];
   if (!groups.length) return [];
   const byId = new Map(groups.map((g) => [g.id, g]));
@@ -530,6 +621,118 @@ function layoutGroups(diagram: Diagram, boxes: NodeBox[]): GroupBox[] {
     });
   }
   return result.sort((a, b) => a.depth - b.depth);
+}
+
+// A group's top-level ancestor (walking .parent to the root), with the same cycle guard as
+// groupDepth: a parent that loops back is treated as already-root rather than recursing.
+function topAncestorGroup(gid: string, byId: Map<string, DiagramGroup>): string {
+  const seen = new Set<string>();
+  let cur = gid;
+  for (;;) {
+    const g = byId.get(cur);
+    const parent = g?.parent;
+    if (!parent || !byId.has(parent) || seen.has(cur) || parent === cur) return cur;
+    seen.add(cur);
+    cur = parent;
+  }
+}
+
+// A contains B (small tolerance): legitimate parent/child nesting, never a pair the collision
+// pass should try to pull apart.
+function boxContains(a: Rect, b: Rect, tol = 2): boolean {
+  return a.x - tol <= b.x && a.y - tol <= b.y
+    && a.x + a.w + tol >= b.x + b.w && a.y + a.h + tol >= b.y + b.h;
+}
+// (overlapX, overlapY); both positive means the boxes truly intersect.
+function overlapExtent(a: Rect, b: Rect): [number, number] {
+  return [
+    Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x),
+    Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y),
+  ];
+}
+
+// Post-layout collision resolution, ported from server/diagram_export.py's _resolve_collisions.
+// The rank grid places nodes by rank/order alone and can't see how big a *group's* padded box
+// grows once its members scatter across ranks (a group spanning ranks 0-2 gets a box as wide
+// as the diagram, which then swallows an unrelated group placed between). This treats every
+// top-level group (with all its nodes and nested children) or ungrouped node as one "cluster",
+// and pushes any truly-overlapping, non-nested pair apart along whichever axis moves least,
+// repeating until nothing overlaps. A pinned cluster (a node the user dragged to a manual pos,
+// or the node being dragged right now) never moves — others move out of its way. Mutates the
+// boxes in place (buildBoxes hands us a fresh array each render, so nothing shared is touched).
+export function resolveClusterCollisions(diagram: Diagram, boxes: NodeBox[], pinnedExtra: Set<string>): NodeBox[] {
+  const groups = diagram.groups ?? [];
+  if (!groups.length) return boxes;
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  const boxById = new Map(boxes.map((b) => [b.node.id, b]));
+
+  const clusterOf = new Map<string, string>();
+  boxes.forEach((b) => {
+    const g = b.node.group;
+    clusterOf.set(b.node.id, g && byId.has(g) ? `g:${topAncestorGroup(g, byId)}` : `n:${b.node.id}`);
+  });
+  const members = new Map<string, string[]>();
+  clusterOf.forEach((key, nid) => {
+    if (!members.has(key)) members.set(key, []);
+    members.get(key)!.push(nid);
+  });
+  if (members.size < 2) return boxes;
+
+  const isPinnedNode = (nid: string) => boxById.get(nid)!.node.pos != null || pinnedExtra.has(nid);
+  const pinned = new Map<string, boolean>();
+  members.forEach((nids, key) => pinned.set(key, nids.some(isPinnedNode)));
+
+  const keys = [...members.keys()];
+  for (let iter = 0; iter < COLLISION_MAX_ITERS; iter++) {
+    const groupBoxById = new Map(layoutGroups(diagram, boxes).map((gb) => [gb.group.id, gb as Rect]));
+    const clusterBox = (key: string): Rect | null =>
+      key.startsWith("g:") ? (groupBoxById.get(key.slice(2)) ?? null) : (boxById.get(key.slice(2)) ?? null);
+
+    let movedAny = false;
+    for (let i = 0; i < keys.length; i++) {
+      const aBox = clusterBox(keys[i]);
+      if (!aBox) continue;
+      for (let j = i + 1; j < keys.length; j++) {
+        const bBox = clusterBox(keys[j]);
+        if (!bBox) continue;
+        if (boxContains(aBox, bBox) || boxContains(bBox, aBox)) continue;
+        const [ox, oy] = overlapExtent(aBox, bBox);
+        if (ox <= 0 || oy <= 0) continue;
+        const aPinned = pinned.get(keys[i])!;
+        const bPinned = pinned.get(keys[j])!;
+        if (aPinned && bPinned) continue;
+
+        const acx = aBox.x + aBox.w / 2;
+        const bcx = bBox.x + bBox.w / 2;
+        const acy = aBox.y + aBox.h / 2;
+        const bcy = bBox.y + bBox.h / 2;
+        const axisX = ox < oy; // push along whichever axis needs less movement
+        const push = (axisX ? ox : oy) + COLLISION_GAP;
+        const shareA = aPinned ? 0 : bPinned ? push : push / 2;
+        const shareB = bPinned ? 0 : aPinned ? push : push / 2;
+
+        let dxA = 0, dyA = 0, dxB = 0, dyB = 0;
+        if (axisX) {
+          const sign = bcx >= acx ? 1 : -1;
+          dxA = -shareA * sign;
+          dxB = shareB * sign;
+        } else {
+          const sign = bcy >= acy ? 1 : -1;
+          dyA = -shareA * sign;
+          dyB = shareB * sign;
+        }
+        for (const nid of members.get(keys[i])!) {
+          if (!isPinnedNode(nid)) { const bx = boxById.get(nid)!; bx.x += dxA; bx.y += dyA; }
+        }
+        for (const nid of members.get(keys[j])!) {
+          if (!isPinnedNode(nid)) { const bx = boxById.get(nid)!; bx.x += dxB; bx.y += dyB; }
+        }
+        movedAny = true;
+      }
+    }
+    if (!movedAny) break;
+  }
+  return boxes;
 }
 
 function hitNode(boxes: NodeBox[], x: number, y: number, excludeId: string): NodeBox | null {
@@ -770,9 +973,14 @@ export default function DiagramView({
   );
   const boxes = useMemo(() => {
     if (!activeDiagram || activeDiagram.kind === "sequence") return [];
-    const autoPos = swimlane ? swimlane.autoPos : computeLayeredAutoPos(activeDiagram, rankInfo, byRank);
-    return buildBoxes(activeDiagram, autoPos, dragOverride);
-  }, [activeDiagram, swimlane, rankInfo, byRank, dragOverride]);
+    const autoPos = swimlane ? swimlane.autoPos : computeLayeredAutoPos(activeDiagram, rankInfo);
+    const built = buildBoxes(activeDiagram, autoPos, dragOverride);
+    // Groups get pulled apart only on the free-canvas layered kinds; swimlanes already place
+    // each group in its own full-width lane, so there is nothing to resolve there.
+    if (swimlane || !activeDiagram.groups?.length) return built;
+    const pinnedExtra = dragOverride ? new Set([dragOverride.id]) : new Set<string>();
+    return resolveClusterCollisions(activeDiagram, built, pinnedExtra);
+  }, [activeDiagram, swimlane, rankInfo, dragOverride]);
   const groupBoxes = useMemo(
     () => (activeDiagram && !isSwimlane && activeDiagram.kind !== "sequence" ? layoutGroups(activeDiagram, boxes) : []),
     [activeDiagram, isSwimlane, boxes],

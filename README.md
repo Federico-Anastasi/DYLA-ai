@@ -32,6 +32,8 @@ chat window. That is what this project is about.
 |---|---|
 | ![Data model](docs/media/data-model.jpg) | ![Timeline](docs/media/timeline.jpg) |
 | An editable ER diagram from the requirements | A plan in days, on a schedule board |
+| ![Technical diagrams](docs/media/diagram.jpg) | ![Graphic designs](docs/media/design.jpg) |
+| Architecture, workflows and dataflows, grouped and laid out for you | Brand-tokened social posts, each a downloadable PNG |
 
 The chat discusses, the viewer shows. The agent never pastes tables into the conversation:
 it writes the document as a draft, you argue about it by referring to rows by id, and when
