@@ -968,6 +968,10 @@ export default function DiagramView({
 
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
+  // Last collision-resolved node positions, captured while NOT dragging. During a drag we hold
+  // every other node here so only the dragged node moves — otherwise the collision pass would
+  // re-run each frame and shove the rest of the diagram around under the cursor.
+  const resolvedRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const [viewBox, setViewBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const panRef = useRef<{ x: number; y: number; vb: { x: number; y: number; w: number; h: number } } | null>(null);
   const [panning, setPanning] = useState(false);
@@ -1059,8 +1063,19 @@ export default function DiagramView({
     // Groups get pulled apart only on the free-canvas layered kinds; swimlanes already place
     // each group in its own full-width lane, so there is nothing to resolve there.
     if (swimlane || !activeDiagram.groups?.length) return built;
-    const pinnedExtra = dragOverride ? new Set([dragOverride.id]) : new Set<string>();
-    return resolveClusterCollisions(activeDiagram, built, pinnedExtra);
+    // While dragging, DON'T re-run the collision pass — that would push every other node around
+    // under the cursor. Freeze everyone else at their last resolved spot; only the dragged node
+    // (already at the cursor via the override) moves, and its edges follow.
+    if (dragOverride) {
+      return built.map((b) => {
+        if (b.node.id === dragOverride.id || b.node.pos) return b;
+        const frozen = resolvedRef.current.get(b.node.id);
+        return frozen ? { ...b, x: frozen.x, y: frozen.y } : b;
+      });
+    }
+    const resolved = resolveClusterCollisions(activeDiagram, built, new Set<string>());
+    resolvedRef.current = new Map(resolved.map((b) => [b.node.id, { x: b.x, y: b.y }]));
+    return resolved;
   }, [activeDiagram, swimlane, rankInfo, dragOverride]);
   const groupBoxes = useMemo(
     () => (activeDiagram && !isSwimlane && activeDiagram.kind !== "sequence" ? layoutGroups(activeDiagram, boxes) : []),
