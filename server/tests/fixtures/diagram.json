@@ -1,0 +1,142 @@
+{
+  "meta": {
+    "project": "diagram-parity-fixture",
+    "title": "Diagram layout parity fixture",
+    "date": "2026-07-22",
+    "status": "draft"
+  },
+  "diagrams": [
+    {
+      "id": "arch-overview",
+      "kind": "architecture",
+      "title": "System Architecture",
+      "notes": "Two client sites access a single cloud-hosted backend. Third parties are an accounting export and an email/SMS provider. g-cloud's members span two ranks (api at rank 1, db/storage/cron at rank 2) -- a real cross-rank group, but NOT the pathological case where a source node with no predecessors is stranded at rank 0 while its group siblings sit much higher: that specific shape (see plans/diagram-quality-improvements.md, point 2 -- the 'cron' example there) makes a group's box span nearly the whole diagram width and creates group-box overlaps that are a KNOWN, deferred bug, not something point 1 (this test) is meant to catch. Keeping 'cron' downstream of 'api' here (rather than upstream, as in the real project this fixture is adapted from) keeps this fixture well-formed: the overlap invariant below is expected to be the empty set.",
+      "groups": [
+        { "id": "g-main-site", "label": "Main site" },
+        { "id": "g-2nd-site", "label": "Second site" },
+        { "id": "g-cloud", "label": "Cloud host" },
+        { "id": "g-3rd-party", "label": "Third parties" }
+      ],
+      "nodes": [
+        { "id": "reception-tablet", "label": "Reception tablet", "class": "actor", "group": "g-main-site", "desc": "iPad · receptionist role" },
+        { "id": "vet-tablet", "label": "Vet tablet", "class": "actor", "group": "g-main-site", "desc": "iPad · veterinarian / nurse" },
+        { "id": "2nd-site-tablet", "label": "Second site tablet", "class": "actor", "group": "g-2nd-site", "desc": "iPad · reception / vet" },
+        { "id": "api", "label": "Practice API", "class": "backend", "group": "g-cloud", "desc": "FastAPI · Pydantic" },
+        { "id": "db", "label": "PostgreSQL", "class": "database", "group": "g-cloud", "desc": "16 · all tables" },
+        { "id": "storage", "label": "File storage", "class": "storage", "group": "g-cloud", "desc": "Visit photos, PDFs" },
+        { "id": "cron", "label": "Cron scheduler", "class": "service", "group": "g-cloud", "desc": "Reminder job" },
+        { "id": "xero", "label": "Accounting export", "class": "external", "group": "g-3rd-party", "desc": "Monthly CSV" },
+        { "id": "email-sms", "label": "Email / SMS provider", "class": "external", "group": "g-3rd-party", "desc": "SMTP relay" }
+      ],
+      "edges": [
+        { "from": "reception-tablet", "to": "api", "label": "HTTPS / JSON" },
+        { "from": "vet-tablet", "to": "api", "label": "HTTPS / JSON" },
+        { "from": "2nd-site-tablet", "to": "api", "label": "HTTPS / JSON" },
+        { "from": "api", "to": "db", "label": "SQL · SQLAlchemy" },
+        { "from": "api", "to": "storage", "label": "multipart upload" },
+        { "from": "api", "to": "email-sms", "label": "SMTP" },
+        { "from": "api", "to": "xero", "label": "monthly CSV export", "style": "dashed" },
+        { "from": "api", "to": "cron", "label": "triggers reminder job", "style": "dashed" }
+      ]
+    },
+    {
+      "id": "wf-appointment-visit",
+      "kind": "workflow",
+      "title": "Appointment -> Visit Workflow",
+      "notes": "Deliberately kept in the fixture even though the layout invariants below skip it: it has groups[] with every node assigned to one, which switches BOTH engines into swimlane mode (computeSwimlaneLayout / _lane_layout) -- a completely different pipeline (no orderWithinRanks/_order_within_ranks call, no GroupBox-shaped group boxes) that this parity test does not cover yet. See generate_diagram_layout.py's SWIMLANE_WORKFLOWS.",
+      "groups": [
+        { "id": "g-reception", "label": "Reception" },
+        { "id": "g-clinical", "label": "Clinical staff" },
+        { "id": "g-system", "label": "System" }
+      ],
+      "nodes": [
+        { "id": "start-visit", "label": "Start", "class": "start", "group": "g-reception" },
+        { "id": "reception-book", "label": "Book appointment", "class": "process", "group": "g-reception" },
+        { "id": "check-conflict", "label": "Slot available?", "class": "decision", "desc": "vet + room + site", "group": "g-system" },
+        { "id": "confirm-book", "label": "Confirm booking", "class": "process", "group": "g-reception" },
+        { "id": "animal-arrives", "label": "Client arrives", "class": "process", "desc": "check-in", "group": "g-reception" },
+        { "id": "vet-call-in", "label": "Call into room", "class": "process", "group": "g-clinical" },
+        { "id": "exam", "label": "Examination", "class": "process", "desc": "complaint -> exam -> diagnosis -> treatment", "group": "g-clinical" },
+        { "id": "complete-appointment", "label": "Complete appointment", "class": "process", "desc": "creates visit record", "group": "g-clinical" },
+        { "id": "write-note", "label": "Write clinical note", "class": "process", "group": "g-clinical" },
+        { "id": "create-invoice", "label": "Create invoice", "class": "process", "group": "g-system" },
+        { "id": "receive-payment", "label": "Receive payment", "class": "process", "desc": "cash / card", "group": "g-reception" },
+        { "id": "end-visit", "label": "Done", "class": "end", "group": "g-reception" }
+      ],
+      "edges": [
+        { "from": "start-visit", "to": "reception-book", "label": "" },
+        { "from": "reception-book", "to": "check-conflict", "label": "" },
+        { "from": "check-conflict", "to": "reception-book", "label": "no" },
+        { "from": "check-conflict", "to": "confirm-book", "label": "yes" },
+        { "from": "confirm-book", "to": "animal-arrives", "label": "scheduled time" },
+        { "from": "animal-arrives", "to": "vet-call-in", "label": "" },
+        { "from": "vet-call-in", "to": "exam", "label": "" },
+        { "from": "exam", "to": "complete-appointment", "label": "" },
+        { "from": "complete-appointment", "to": "write-note", "label": "" },
+        { "from": "write-note", "to": "create-invoice", "label": "" },
+        { "from": "create-invoice", "to": "receive-payment", "label": "" },
+        { "from": "receive-payment", "to": "end-visit", "label": "" }
+      ]
+    },
+    {
+      "id": "df-privacy",
+      "kind": "dataflow",
+      "title": "Dataflow -- Client & Animal Records",
+      "notes": "Groups whose members span multiple ranks, same as arch-overview: g-input feeds g-stores (rank 0 -> rank 1) and g-output reads back from g-stores across several ranks.",
+      "groups": [
+        { "id": "g-input", "label": "Data input" },
+        { "id": "g-stores", "label": "Data stores (PostgreSQL)" },
+        { "id": "g-output", "label": "Data output / external" }
+      ],
+      "nodes": [
+        { "id": "reception", "label": "Receptionist", "class": "actor", "group": "g-input" },
+        { "id": "vet", "label": "Veterinarian", "class": "actor", "group": "g-input" },
+        { "id": "client-table", "label": "client", "class": "database", "group": "g-stores", "desc": "name, address, email, phone" },
+        { "id": "animal-table", "label": "animal", "class": "database", "group": "g-stores", "desc": "name, species, microchip, temperament" },
+        { "id": "visit-table", "label": "visit", "class": "database", "group": "g-stores" },
+        { "id": "visit-note-table", "label": "visit_note", "class": "database", "group": "g-stores", "desc": "append-only clinical notes" },
+        { "id": "photo-storage", "label": "attachments", "class": "storage", "group": "g-stores" },
+        { "id": "invoice-table", "label": "invoice", "class": "database", "group": "g-stores", "desc": "amounts, insurance data" },
+        { "id": "client-request", "label": "Subject access request", "class": "process", "group": "g-input", "desc": "client asks for their data" },
+        { "id": "generate-report", "label": "Compile full client record", "class": "process", "group": "g-output", "desc": "client + animal + visits + notes + photos" },
+        { "id": "deliver-data", "label": "Deliver data to client", "class": "process", "group": "g-output", "desc": "encrypted export" },
+        { "id": "xero-external", "label": "Accounting system", "class": "external", "group": "g-output", "desc": "invoice amounts only" },
+        { "id": "email-provider", "label": "Email provider", "class": "external", "group": "g-output", "desc": "reminders only" }
+      ],
+      "edges": [
+        { "from": "reception", "to": "client-table", "label": "create / update client data" },
+        { "from": "reception", "to": "animal-table", "label": "register animal + ownership" },
+        { "from": "vet", "to": "visit-note-table", "label": "append clinical data" },
+        { "from": "vet", "to": "photo-storage", "label": "upload photos" },
+        { "from": "visit-table", "to": "invoice-table", "label": "billable items" },
+        { "from": "invoice-table", "to": "xero-external", "label": "monthly CSV" },
+        { "from": "client-table", "to": "email-provider", "label": "reminder contact" },
+        { "from": "client-request", "to": "generate-report", "label": "trigger" },
+        { "from": "generate-report", "to": "client-table", "label": "read" },
+        { "from": "generate-report", "to": "animal-table", "label": "read" },
+        { "from": "generate-report", "to": "visit-note-table", "label": "read" },
+        { "from": "generate-report", "to": "photo-storage", "label": "read" },
+        { "from": "generate-report", "to": "deliver-data", "label": "encrypted export" }
+      ]
+    },
+    {
+      "id": "seq-dispense",
+      "kind": "sequence",
+      "title": "Medication Dispense -- Step-by-Step",
+      "notes": "Sequence diagrams use a completely different, fixed lifeline/message layout (nodes[] order, edges[] order) -- no ranks, no groups, no auto-layout at all. Kept in the fixture, skipped by the generator, so a future accidental attempt to run the rank pipeline on a sequence diagram fails loudly instead of silently.",
+      "nodes": [
+        { "id": "vet", "label": "Vet", "class": "actor" },
+        { "id": "ui", "label": "Visit detail UI", "class": "frontend" },
+        { "id": "api", "label": "Practice API", "class": "backend" },
+        { "id": "db", "label": "PostgreSQL", "class": "database" }
+      ],
+      "edges": [
+        { "from": "vet", "to": "ui", "label": "Click 'Dispense medication'" },
+        { "from": "ui", "to": "api", "label": "GET /medicines?search=" },
+        { "from": "api", "to": "db", "label": "SELECT medicine WHERE name ILIKE" },
+        { "from": "db", "to": "api", "label": "matching medicines" },
+        { "from": "api", "to": "ui", "label": "autocomplete results" }
+      ]
+    }
+  ]
+}

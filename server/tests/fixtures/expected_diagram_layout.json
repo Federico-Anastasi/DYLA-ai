@@ -1,0 +1,54 @@
+{
+ "diagrams": {
+  "arch-overview": {
+   "order": {
+    "0": [
+     "reception-tablet",
+     "vet-tablet",
+     "2nd-site-tablet"
+    ],
+    "1": [
+     "api"
+    ],
+    "2": [
+     "db",
+     "storage",
+     "cron",
+     "xero",
+     "email-sms"
+    ]
+   },
+   "overlaps": []
+  },
+  "df-privacy": {
+   "order": {
+    "0": [
+     "reception",
+     "vet",
+     "visit-table",
+     "client-request"
+    ],
+    "1": [
+     "invoice-table",
+     "generate-report"
+    ],
+    "2": [
+     "xero-external",
+     "deliver-data",
+     "client-table",
+     "animal-table",
+     "visit-note-table",
+     "photo-storage"
+    ],
+    "3": [
+     "email-provider"
+    ]
+   },
+   "overlaps": []
+  }
+ },
+ "skipped": {
+  "wf-appointment-visit": "swimlane workflow: different pipeline, not covered by this test yet",
+  "seq-dispense": "sequence layout: fixed lifelines/messages, no ranks or groups"
+ }
+}

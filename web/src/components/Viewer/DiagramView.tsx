@@ -280,7 +280,11 @@ function acyclicAdjacency(diagram: Diagram): Map<string, string[]> {
 // land next to each other instead of interleaved with the rest of the rank. That grouping is
 // what keeps a group's bounding box compact instead of spanning the whole rank, which is the
 // precondition for the collision pass to be able to separate groups at all.
-function orderWithinRanks(diagram: Diagram, rank: Map<string, number>): Map<number, string[]> {
+//
+// Exported (otherwise unused outside this module) so DiagramView.parity.test.ts can compare
+// the exact per-rank ordering this produces against _order_within_ranks's, instead of
+// re-deriving an order from box positions and risking a tautological pass.
+export function orderWithinRanks(diagram: Diagram, rank: Map<string, number>): Map<number, string[]> {
   const nodeById = new Map(diagram.nodes.map((n) => [n.id, n]));
   const adj = acyclicAdjacency(diagram);
   const maxRank = Math.max(0, ...Array.from(rank.values()));
