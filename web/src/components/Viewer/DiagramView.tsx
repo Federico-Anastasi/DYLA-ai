@@ -972,6 +972,15 @@ export default function DiagramView({
   // every other node here so only the dragged node moves — otherwise the collision pass would
   // re-run each frame and shove the rest of the diagram around under the cursor.
   const resolvedRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  // Undo/redo history for the whole diagram doc. Every mutation pushes the pre-change snapshot
+  // onto undoStack and clears redoStack; Ctrl+Z pops one, Ctrl+Shift+Z / Ctrl+Y replays it.
+  const undoStack = useRef<DiagramDoc[]>([]);
+  const redoStack = useRef<DiagramDoc[]>([]);
+  // Current keyboard handlers, refreshed every render so the (deps-[]) keydown listener always
+  // sees live state without re-subscribing on every selection change.
+  const kbd = useRef<{ undo: () => void; redo: () => void; del: () => void; hasSel: boolean; editing: boolean }>({
+    undo: () => {}, redo: () => {}, del: () => {}, hasSel: false, editing: false,
+  });
   const [viewBox, setViewBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const panRef = useRef<{ x: number; y: number; vb: { x: number; y: number; w: number; h: number } } | null>(null);
   const [panning, setPanning] = useState(false);
@@ -1026,13 +1035,34 @@ export default function DiagramView({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpenMenu(null);
-      setConnDrag(null);
-      setEditingNode(null);
-      setEditingGroup(null);
-      setDiagramRename(null);
-      setSel(null);
+      const k = kbd.current;
+      if (e.key === "Escape") {
+        setOpenMenu(null);
+        setConnDrag(null);
+        setEditingNode(null);
+        setEditingGroup(null);
+        setDiagramRename(null);
+        setSel(null);
+        return;
+      }
+      const el = e.target as HTMLElement | null;
+      const inField = el?.tagName === "INPUT" || el?.tagName === "TEXTAREA" || el?.isContentEditable === true;
+      if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        if (e.shiftKey) k.redo(); else k.undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+        e.preventDefault();
+        k.redo();
+        return;
+      }
+      // Delete / Backspace removes the selection — but never while typing in a field or an
+      // inline rename, where Backspace has to edit text.
+      if ((e.key === "Delete" || e.key === "Backspace") && k.hasSel && !k.editing && !inField) {
+        e.preventDefault();
+        k.del();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -1240,8 +1270,28 @@ export default function DiagramView({
   if (!doc) return <div className="spinner-block"><span className="spinner" />loading…</div>;
 
   const mutate = (fn: (d: DiagramDoc) => DiagramDoc) => {
-    setDoc((cur) => (cur ? fn(structuredClone(cur)) : cur));
+    setDoc((cur) => {
+      if (!cur) return cur;
+      undoStack.current.push(structuredClone(cur));
+      if (undoStack.current.length > 100) undoStack.current.shift();
+      redoStack.current = [];
+      return fn(structuredClone(cur));
+    });
     setDirty(true);
+  };
+  const undo = () => {
+    const prev = undoStack.current.pop();
+    if (!prev) return;
+    setDoc((cur) => { if (cur) redoStack.current.push(structuredClone(cur)); return prev; });
+    setDirty(true);
+    setSel(null);
+  };
+  const redo = () => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    setDoc((cur) => { if (cur) undoStack.current.push(structuredClone(cur)); return next; });
+    setDirty(true);
+    setSel(null);
   };
   const mutateActive = (fn: (dg: Diagram) => void) => {
     mutate((d) => {
@@ -1332,6 +1382,12 @@ export default function DiagramView({
       mutateActive((dg) => { dg.edges.splice(sel.index, 1); });
     }
     setSel(null);
+  };
+  // Refresh the keyboard handler ref every render so Delete / Ctrl+Z act on the current state.
+  kbd.current = {
+    undo, redo, del: deleteSelected,
+    hasSel: sel != null,
+    editing: editingNode != null || editingGroup != null || diagramRename != null,
   };
 
   const patchEdge = (index: number, patch: Partial<DiagramEdge>) =>
